@@ -1,0 +1,9 @@
+pyyaml
+google-ads-api-report-fetcher
+google-analytics-data
+google-cloud-bigquery
+pandas
+db-dtypes
+semantic-version
+pre-commit
+schema
