@@ -1,0 +1,13 @@
+steps:
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.app', '--build-arg', 'PROJECT_ID=$PROJECT_ID', '--build-arg', 'PROJECT_NAME=$_PROJECT_NAME', '-t', 'gcr.io/$PROJECT_ID/$_PROJECT_NAME', '.']
+
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-f', 'Dockerfile.job', '--build-arg', 'PROJECT_ID=$PROJECT_ID', '--build-arg', 'PROJECT_NAME=$_PROJECT_NAME', '-t', 'gcr.io/$PROJECT_ID/${_PROJECT_NAME}_job', '.']
+
+images:
+- 'gcr.io/$PROJECT_ID/$_PROJECT_NAME'
+- 'gcr.io/$PROJECT_ID/${_PROJECT_NAME}_job'
+
+substitutions:
+  _PROJECT_NAME: 'Default Project Name'
