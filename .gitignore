@@ -1,7 +1,6 @@
 /venv
 **/__pycache__/
 server/tests/test_files
-.vscode
 .pytest_cache
 pylintrc
 **/.DS_Store
