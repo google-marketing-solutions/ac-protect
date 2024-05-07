@@ -1,0 +1,11 @@
+__pycache__
+.terraform
+.vscode
+venv
+credentials.json
+terraform.tfstate
+infra.tf
+config.yaml
+config.example.yaml
+.env
+appengine/*
