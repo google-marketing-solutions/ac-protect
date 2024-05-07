@@ -21,6 +21,7 @@ import requests
 
 from env import APP_ENGINE_URL
 from server.db.bq import BigQuery
+from server.logger import logger
 
 
 def send_email(subject: str, body: str, recipients: List[str],
@@ -44,6 +45,10 @@ def send_email(subject: str, body: str, recipients: List[str],
 
   if resp.status_code:
     bq_client.update_last_run('Email', f'service-{app_id}')
+    logger.log('Sent the following alert emails:')
+    logger.log('To: %s', ', '.join(recipients))
+    logger.log('Subject: %s', subject)
+    logger.log('Body: %s', body)
 
   return resp.status_code
 
