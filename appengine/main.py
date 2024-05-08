@@ -24,6 +24,7 @@ from google.auth import default
 app = Flask(__name__)
 app.wsgi_app = wrap_wsgi_app(app.wsgi_app)
 
+
 def get_project_id() -> str:
   ''' Get the Google Cloud Project Id
 
@@ -33,24 +34,31 @@ def get_project_id() -> str:
   _, project_id = default()
   return project_id
 
+
 @app.route('/send-email', methods=['POST'])
 def send_email():
   ''' Send an email.
-  The function gets the "to", "subject" and "body" from the request object.
+  The function looks for the "to", "subject", "html" and "body" keys in the
+  request object.
   '''
   data = request.get_json()
   to_email = data['to']
   subject_email = data['subject']
-  message_email = data['body']
 
   project_id = get_project_id()
   sender = f'no-reply@{project_id}.appspotmail.com'
 
   try:
-    message = mail.EmailMessage(sender=sender,
-                                subject=subject_email,
-                                to=to_email,
-                                body=message_email)
+    message = mail.EmailMessage(
+        sender=sender, subject=subject_email, to=to_email)
+
+    if 'html' in data:
+      message.html = data['html']
+    elif 'body' in data:
+      message.body = data['body']
+    else:
+      message.body = ''
+
     message.send()
 
     return jsonify({'result': f'Successfully sent email to {to_email}!'})
