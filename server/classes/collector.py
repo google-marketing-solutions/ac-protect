@@ -22,17 +22,9 @@ class Collector():
   transform the data and save it to a db for further analysis by Rules.
   '''
 
-  @property
-  @abc.abstractmethod
-  def name(self) -> str:
-    ''' Collector name. '''
-    pass
-
-  @property
-  @abc.abstractmethod
-  def type_(self) -> str:
-    ''' Collector type. '''
-    pass
+  def __init__(self, name: str, type_: str):
+    self.name = name
+    self.type_ = type_
 
   @abc.abstractmethod
   def collect(self):

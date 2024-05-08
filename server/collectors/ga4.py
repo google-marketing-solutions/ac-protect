@@ -40,8 +40,7 @@ class GA4Collector(Collector):
   ''' Collector class for GA4  '''
 
   def __init__(self, auth: Dict, config: Dict, bq_client: BigQuery) -> None:
-    self.name = 'GA4-collector'
-    self.type_ = 'collector'
+    super().__init__('GA4-collector', 'collector')
 
     self.ga4_config = config
     self.creds_info = self.get_creds_info(auth)

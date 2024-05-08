@@ -30,8 +30,7 @@ class GAdsCollector(Collector):
   ''' Collector class for Google Ads.'''
 
   def __init__(self, auth: Dict, collector_config: Dict, bq_client: BigQuery):
-    self.name = 'GAds-collector'
-    self.type_ = 'collector'
+    super().__init__('GAds-collector', 'collector')
     self.bq_client = bq_client
 
     self.customer_id = str(auth['login_customer_id'])
