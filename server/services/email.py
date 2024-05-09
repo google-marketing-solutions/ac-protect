@@ -78,10 +78,25 @@ def create_alerts_email_body(df: pd.DataFrame):
   '''
   app_id = df.iloc[0][0]
   df = df[['trigger', 'trigger_value', 'timestamp']]
-  table = df.to_csv()
+  table = df.to_csv(index=False)
 
   return f'''
     The following alerts have been triggered in app {app_id}:
 
     {table}
   '''
+
+def create_html_email(df):
+  app_id = df.iloc[0][0]
+  df = df[['trigger', 'trigger_value', 'timestamp']]
+  table = df.to_html(index=False)
+
+  html = f'''
+    <html>
+      <body>
+        <h1>The following alerts have been triggered in app {app_id}:</h1>
+        {table}
+      </body>
+    </html>
+  '''
+  return html
