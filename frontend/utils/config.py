@@ -88,7 +88,6 @@ class Config:
     })
 
     self.bigquery = config.get('bigquery', {
-        'location': 'US',
         'dataset': 'ac_protect',
         'last_trigger_log': 'last_trigger_log'
     })

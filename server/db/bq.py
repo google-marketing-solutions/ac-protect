@@ -38,7 +38,6 @@ class BigQuery(BaseDb):
   def __init__(self, auth: Dict, config: Dict):
     self.project_id = auth['project_id']
     self.dataset = config['dataset']
-    self.location = config['location']
     self.client = self.connect(self.project_id)
     super().__init__()
 
