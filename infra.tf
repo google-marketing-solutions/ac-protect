@@ -91,6 +91,8 @@ resource "google_bigquery_table" "gads" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "gads"
 
+  deletion_protection = false
+
   time_partitioning {
     type = "DAY"
   }
@@ -104,7 +106,7 @@ resource "google_bigquery_table" "gads" {
   },
   {
     "name": "property_id",
-    "type": "STRING",
+    "type": "INTEGER",
     "mode": "REQUIRED"
   },
   {
@@ -155,7 +157,7 @@ resource "google_bigquery_table" "ga4" {
 [
   {
     "name": "property_id",
-    "type": "STRING",
+    "type": "INTEGER",
     "mode": "REQUIRED"
   },
   {
@@ -171,11 +173,6 @@ resource "google_bigquery_table" "ga4" {
   {
     "name": "event_name",
     "type": "STRING",
-    "mode": "REQUIRED"
-  },
-  {
-    "name": "first_session_date",
-    "type": "INTEGER",
     "mode": "REQUIRED"
   },
   {
@@ -235,7 +232,7 @@ resource "google_bigquery_table" "alerts" {
   },
   {
     "name": "timestamp",
-    "type": "STRING",
+    "type": "DATETIME",
     "mode": "REQUIRED"
   }
 ]
@@ -246,7 +243,7 @@ EOF
 resource "google_bigquery_table" "last_trigger_log" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "last_trigger_log"
-
+  deletion_protection = false
   time_partitioning {
     type = "DAY"
   }
@@ -335,18 +332,22 @@ resource "google_cloud_run_v2_job" "run_job" {
 }
 
 resource "google_cloud_scheduler_job" "example_scheduler" {
-  name     = "example-scheduler-job"
-  region   = "us-central1"
-  schedule = "0 0 * * *"  # This cron schedule runs once every day at midnight
-
+  name             = "${var.service_name}-job-scheduler"
+  schedule         = "0 0 * * *"
+  attempt_deadline = "320s"
+  region           = "us-central1"
+  project          = var.project_id
+  retry_config {
+    retry_count = 1
+  }
   http_target {
     http_method = "POST"
-    uri         = "https://${google_cloud_run_v2_job.run_job.location}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_id}/jobs/${google_cloud_run_v2_job.run_job.name}:run"
-
-    oidc_token {
-      service_account_email = google_service_account.invoker.email
+    uri         = "https://${var.region}-run.googleapis.com/apis/run.googleapis.com/v1/namespaces/${var.project_number}/jobs/${var.service_name}-job:run"
+    oauth_token {
+      service_account_email = "${var.project_number}-compute@developer.gserviceaccount.com"
     }
   }
+  depends_on = [google_cloud_run_v2_job.run_job]
 }
 
 resource "google_service_account" "invoker" {
