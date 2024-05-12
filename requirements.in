@@ -7,3 +7,11 @@ db-dtypes
 semantic-version
 pre-commit
 schema
+pytest
+pydantic
+
+streamlit
+python-dotenv
+google-api-python-client
+smart_open[gcs]
+google-ads
