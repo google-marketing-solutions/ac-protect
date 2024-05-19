@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -34,6 +34,7 @@ from server.db.tables import GA4_TABLE_NAME
 from server.db.tables import Ga4Table
 from server.db.tables import GADS_TABLE_NAME
 from server.logger import logger
+from server.utils import Scopes
 
 
 class GA4Collector(Collector):
@@ -67,6 +68,7 @@ class GA4Collector(Collector):
     rows = []
 
     for property_id in properties:
+      logger.info(f'getting data for property - {property_id}')
       request = self.create_request(property_id, events)
       try:
         response = client.run_report(request)
@@ -78,6 +80,7 @@ class GA4Collector(Collector):
       except PermissionDenied as e:
         logger.info('Error accessing property ID %s - %s', property_id,
                     e.errors)
+        #TODO - What happends to the whole process if there is an error in this collector?
 
     df = pd.DataFrame(rows, columns=self.columns[:-2])
     return df
@@ -106,7 +109,7 @@ class GA4Collector(Collector):
       overwrite: Whether to overwrite existing data in the table. Defaults to
       False.
     '''
-
+    logger.info(f'ga4 collector - saving data to {GA4_TABLE_NAME}')
     self.bq_client.write_to_table(GA4_TABLE_NAME, df, overwrite)
     self.bq_client.update_last_run(self.name, self.type_)
 
@@ -125,7 +128,7 @@ class GA4Collector(Collector):
         'client_id': auth['client_id'],
         'client_secret': auth['client_secret'],
         'refresh_token': auth['refresh_token'],
-        'scopes': ['https://www.googleapis.com/auth/analytics']
+        'scopes': [Scopes.ANALYTICS_READ_ONLY.value]
     }
 
   def create_request(self, property_id: str, events: List[str]):
@@ -170,7 +173,7 @@ class GA4Collector(Collector):
 
     return f'{os.lower()}_{property_id}_{event_name}'
 
-  def _add_added_time(self) -> str:
+  def _add_added_time(self, df: pd.DataFrame) -> str:
     ''' Helper method to create a formated string of the current date.
 
     Returns:

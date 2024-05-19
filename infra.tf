@@ -36,9 +36,6 @@ terraform {
   }
 }
 
-provider "archive" {
-}
-
 provider "google" {
   project = var.project_id
   region  = var.region
@@ -48,12 +45,6 @@ provider "google" {
 #   Data
 #################################################################
 
-
-data "archive_file" "my_zip" {
-  type        = "zip"
-  source_dir  = "./appengine"
-  output_path = "./appengine/email_engine.zip"
-}
 
 data "external" "latest_image_digest" {
   program = ["./fetch_latest_image_digest.sh"]
@@ -82,16 +73,11 @@ resource "google_bigquery_dataset" "dataset" {
   friendly_name               = "ac_protect"
   description                 = "dataset for monitoring your apps marketing connectivity"
   location                    = var.location
-  default_table_expiration_ms = 3600000
 }
 
-
-
-resource "google_bigquery_table" "gads" {
+resource "google_bigquery_table" "collector_gads" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "gads"
-
-  deletion_protection = false
 
   time_partitioning {
     type = "DAY"
@@ -102,27 +88,27 @@ resource "google_bigquery_table" "gads" {
   {
     "name": "app_id",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "property_id",
     "type": "INTEGER",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "property_name",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "event_name",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "type",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "last_conversion_date",
@@ -132,12 +118,12 @@ resource "google_bigquery_table" "gads" {
   {
     "name": "os",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   },
   {
     "name": "uid",
     "type": "STRING",
-    "mode": "REQUIRED"
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -145,7 +131,7 @@ EOF
 }
 
 
-resource "google_bigquery_table" "ga4" {
+resource "google_bigquery_table" "collector_ga4" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "ga4"
 
@@ -243,7 +229,7 @@ EOF
 resource "google_bigquery_table" "last_trigger_log" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "last_trigger_log"
-  deletion_protection = false
+
   time_partitioning {
     type = "DAY"
   }
@@ -271,47 +257,6 @@ EOF
 }
 
 
-
-#################################################################
-#   AppEngine Email Server
-#################################################################
-
-
-resource "google_storage_bucket_object" "email_engine_source" {
-  name   = "email_engine.zip"
-  bucket = data.google_storage_bucket.existing_config_bucket.name
-  source = data.archive_file.my_zip.output_path
-}
-
-
-resource "google_app_engine_standard_app_version" "email_engine" {
-  version_id = "v1"
-  service = "default"
-  delete_service_on_destroy = true
-
-  runtime = "python38"
-  app_engine_apis = true
-  entrypoint {
-    shell = "gunicorn -b :$PORT main:app"
-  }
-  deployment {
-    zip {
-      source_url = "https://storage.googleapis.com/${data.google_storage_bucket.existing_config_bucket.name}/${google_storage_bucket_object.email_engine_source.name}"
-    }
-  }
-  env_variables = {
-    port = "8080"
-  }
-
-}
-
-resource "google_app_engine_service_network_settings" "internalapp" {
-  service = google_app_engine_standard_app_version.email_engine.service
-  network_settings {
-    ingress_traffic_allowed = "INGRESS_TRAFFIC_ALLOWED_INTERNAL_ONLY"
-  }
-}
-
 #################################################################
 #   Cloud Run
 #################################################################
@@ -326,6 +271,12 @@ resource "google_cloud_run_v2_job" "run_job" {
     template {
       containers {
         image = "gcr.io/${var.project_id}/${var.service_name}_job@${data.external.latest_image_digest.result["job"]}"
+        resources {
+          limits = {
+            cpu = "1000m"
+            memory = "512Mi"
+          }
+        }
       }
     }
   }
@@ -350,16 +301,7 @@ resource "google_cloud_scheduler_job" "example_scheduler" {
   depends_on = [google_cloud_run_v2_job.run_job]
 }
 
-resource "google_service_account" "invoker" {
-  account_id   = "cloud-run-invoker"
-  display_name = "Cloud Run Invoker Account"
-}
 
-resource "google_project_iam_member" "invoker" {
-  project = var.project_id
-  role    = "roles/run.invoker"
-  member  = "serviceAccount:${google_service_account.invoker.email}"
-}
 
 resource "google_cloud_run_service" "run_service" {
   name     = "${var.service_name}-service"
@@ -372,7 +314,7 @@ resource "google_cloud_run_service" "run_service" {
   template {
     metadata {
       annotations = {
-        "autoscaling.knative.dev/minScale" = "1"
+        "autoscaling.knative.dev/minScale" = "0"
         "run.googleapis.com/execution-environment" = "gen2" // Required for setting min instances
       }
     }
@@ -381,8 +323,8 @@ resource "google_cloud_run_service" "run_service" {
         image = "gcr.io/${var.project_id}/${var.service_name}@${data.external.latest_image_digest.result["service"]}"
         resources {
           limits = {
-            cpu = "2000m"
-            memory = "2Gi"
+            cpu = "1000m"
+            memory = "512Mi"
           }
         }
         env {
@@ -408,4 +350,13 @@ resource "google_cloud_run_service_iam_policy" "public_access" {
   project     = google_cloud_run_service.run_service.project
   service     = google_cloud_run_service.run_service.name
   policy_data = data.google_iam_policy.public_access.policy_data
+}
+
+
+#################################################################
+#   Outputs
+#################################################################
+
+output "service_url" {
+  value = google_cloud_run_service.run_service.status[0].url
 }

@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-''' Environment variables used by the project'''
+""" Environment variables used by the project"""
 import pathlib
 from os import getenv
 
@@ -26,7 +26,9 @@ IS_LOCAL = getenv('IS_LOCAL', 'True').lower() == 'true'
 if IS_LOCAL:
   load_dotenv(dotenv_path=find_dotenv(), override=True)
 
-LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).resolve()}/config.yaml'
+LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.resolve()}/config.yaml'
 REMOTE_CONFIG_PATH = f'gs://{PROJECT_ID}/ac-protect/config.yaml'
 CONFIG_FILE_PATH = REMOTE_CONFIG_PATH if PROJECT_ID else LOCAL_CONFIG_PATH
 CONFIG_PATH = getenv('CONFIG_PATH', CONFIG_FILE_PATH)
+REDIRECT_URI = getenv('REDIRECT_URI',
+                      'https://sdk.cloud.google.com/authcode.html')

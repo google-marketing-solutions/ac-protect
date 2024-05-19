@@ -50,6 +50,7 @@ def get_ads_data(auth: Dict,
       are no results.
   """
   bq = BigQuery(auth, bq_config)
+  bq.connect()
 
   if not cols:
     cols = ['*']
@@ -118,5 +119,4 @@ def update_config_file(config: Dict, config_path: str = CONFIG_FILE_PATH):
     config_path: path to the config file. Defaults to CONFIG_FILE_PATH from
     environment
   """
-
   update_config(config, config_path)

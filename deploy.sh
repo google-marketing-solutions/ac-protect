@@ -31,20 +31,25 @@ create_image() {
 
 run_tf() {
     echo -e "${COLOR}Creating Infra...${NC}"
-
+    gcloud services enable gmail.googleapis.com
     gcloud services enable run.googleapis.com
-    gcloud services enable appengine.googleapis.com
     gcloud services enable bigquery.googleapis.com
     gcloud services enable storage.googleapis.com
     gcloud services enable cloudscheduler.googleapis.com
     gcloud services enable iam.googleapis.com
     gcloud services enable cloudresourcemanager.googleapis.com
 
-    gcloud app create --region=$LOCATION_ID
-
     terraform init -backend-config="bucket=$PROJECT_ID"
     terraform apply -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID" -auto-approve
     echo -e "${COLOR}Infra Created!${NC}"
+
+    FRONTEND_SITE=$(terraform output -raw service_url)
+    echo -e "${COLOR}Go to - ${FRONTEND_SITE}${NC}"
+}
+
+plan_tf() {
+    terraform init -backend-config="bucket=$PROJECT_ID"
+    terraform plan -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID"
 }
 
 refresh_tf() {
@@ -53,6 +58,11 @@ refresh_tf() {
 
 destroy_tf() {
     terraform apply -destroy -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID"
+}
+
+cleanup_builds() {
+    gsutil ls -l gs://artifacts.${PROJECT_ID}.appspot.com/containers/images | sort -k2r | tail -n +6 | awk '{print $3}' | gsutil -m rm -I
+    gsutil ls -l gs://${PROJECT_ID}_cloudbuild/source | sort -k2r | tail -n +6 | awk '{print $3}' | gsutil -m rm -I
 }
 
 deploy_image() {
@@ -65,6 +75,7 @@ deploy_all() {
     deploy_config
     create_image
     run_tf
+    cleanup_builds
 }
 
 

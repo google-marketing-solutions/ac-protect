@@ -22,6 +22,7 @@ import pandas as pd
 
 from server.classes.alerts import Alert
 from server.db.bq import BigQuery
+from server.logger import logger
 
 @dataclasses.dataclass
 class RuleObject(abc.ABC):
@@ -38,7 +39,9 @@ class Rule(abc.ABC):
     self.name = rule_name
     self.type = 'rule'
     self.config = app_config
-    self.db_client = BigQuery(auth_config, bq_config)
+    #TODO - remove connection to DB from init
+    self.db_client = BigQuery(auth_config, bq_config).connect()
+
 
   @abc.abstractmethod
   def run(self):

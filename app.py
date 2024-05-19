@@ -12,10 +12,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import pandas as pd
+import requests
 import streamlit as st
 from google.api_core.exceptions import BadRequest
+from google_auth_oauthlib.flow import Flow
 
+from env import REDIRECT_URI
 from frontend.utils.config import Config
+from frontend.utils.logger import logger
 from server.endpoints import get_ads_app_ids
 from server.endpoints import get_ads_data as get_data
 from server.endpoints import update_config_file
@@ -32,9 +36,12 @@ def validate_config():
     st.session_state.ui_state['valid_config'] = True
   else:
     st.session_state.ui_state['valid_config'] = False
+  logger.info(f"validate_config - {st.session_state.ui_state['valid_config']}")
 
 
 def initialize_session_state():
+  if 'is_auth' not in st.session_state:
+    st.session_state.is_auth = False
   if 'ui_state' not in st.session_state:
     st.session_state.ui_state = {}
     st.session_state.ui_state['valid_config'] = False
@@ -52,6 +59,7 @@ def initialize_session_state():
                  st.session_state.config.bigquery)
 
 def get_ads_data(auth, collector_config, bq_config):
+  logger.info(f'getting ads data')
   try:
     st.session_state.ads_data = get_data(auth, collector_config, bq_config)
   except BadRequest as e:
@@ -59,6 +67,58 @@ def get_ads_data(auth, collector_config, bq_config):
     st.error(f'Bad config:\n{e}')
   return st.session_state.ads_data
 
+
+def get_user_email(access_token):
+  r = requests.get('https://www.googleapis.com/oauth2/v3/userinfo',
+    params={'access_token': access_token},
+    timeout=3600)
+
+  return r.json()
+
+def login(config):
+  logger.info('starting login flow')
+  SCOPES = ['openid', 'https://www.googleapis.com/auth/userinfo.email',]
+  # Create a flow instance to manage the OAuth 2.0 Authorization Grant Flow steps
+  flow = Flow.from_client_config(
+    {
+    'web': {
+      'client_id': config.auth['client_id'],
+      'project_id': config.auth['project_id'],
+      'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+      'token_uri': 'https://oauth2.googleapis.com/token',
+      'auth_provider_x509_cert_url': 'https://www.googleapis.com/oauth2/v1/certs',
+      'client_secret': config.auth['client_secret']
+    }
+    },
+    scopes=SCOPES,
+    redirect_uri=REDIRECT_URI
+  )
+
+  auth_url, _ = flow.authorization_url(prompt='consent')
+  instruct_placeholder = st.empty()
+  auth_code_placeholder = st.empty()
+
+  instruct_placeholder.write('Please go to [this URL](%s) for authentication \
+                             and copy-paste the verification code back here' % auth_url)
+  code = auth_code_placeholder.text_input('Enter your verification code')
+  if code:
+    try:
+      flow.fetch_token(code=code) #TODO - what exception is sent?
+      credentials = flow.credentials
+      # Verify if the email belongs to google.com domain
+      user = get_user_email(credentials.token)
+      email_address = user['email']
+      allowed_users = config.users
+
+      if email_address in allowed_users:
+        st.session_state.is_auth = True
+        instruct_placeholder.empty()
+        auth_code_placeholder.empty()
+      else:
+        st.error('Login Failed - Invalid email domain')
+    except Exception as e:  #TODO - change to specific exception
+      st.error('Login Failed')
+      st.error(e)
 
 def authenticate(config_params):
   config_params['use_proto_plus'] = True
@@ -74,9 +134,31 @@ def authenticate(config_params):
 def reset_config():
   st.session_state.ui_state['valid_config'] = False
 
+def valid_emails(emails):
+    for email in emails:
+      email = email.replace(' ', '')
+      if not email:
+        return False
+      elif '@' not in email:
+        return False
+      elif '.' not in email.split('@')[1]:
+        return False
+    return True
+
+
 def auth_expander(config):
   with st.expander('**Authentication**', expanded=not st.session_state.ui_state['valid_config']):
     if not st.session_state.ui_state['valid_config']:
+      users = st.text_input(
+        'allowed users emails',
+      value=', '.join(st.session_state.config.users),
+        key='users')
+      users = users.split(',')
+      valid_users = valid_emails(users)
+      if not valid_users:
+        st.error('allowed users list contains unvalid emails')
+      else:
+        st.session_state.config.users = users
       st.info(f'Credentials are not set. {OAUTH_HELP}', icon='⚠️')
       client_id = st.text_input('Client ID', value=config.auth['client_id'])
       client_secret = st.text_input(
@@ -90,8 +172,9 @@ def auth_expander(config):
         'GCP Project ID', value=config.auth['project_id'])
       project_number = st.text_input(
         'GCP PRoject Number', value=config.auth['project_number'])
-      login_btn = st.button(
+      st.button(
         'Save',
+        disabled=not valid_users,
         type='primary',
         on_click=authenticate,
         args=[{
@@ -104,7 +187,8 @@ def auth_expander(config):
           'project_number': project_number,
         }])
     else:
-      st.success(f'Credentials succesfully set ', icon='✅')
+      st.success('Credentials succesfully set ', icon='✅')
+      st.text_input('Users', value=', '.join(config.users), disabled=True)
       st.text_input('Client ID', value=config.auth['client_id'], disabled=True)
       st.text_input(
         'Client Secret', value=config.auth['client_secret'], disabled=True)
@@ -122,7 +206,7 @@ def auth_expander(config):
         'GCP PRoject Number',
         value=config.auth['project_number'],
         disabled=True)
-      edit = st.button('Edit Credentials', on_click=reset_config)
+      st.button('Edit Credentials', on_click=reset_config)
 
 
 def show_alerts_expander(df):
@@ -268,10 +352,14 @@ def main():
   st.header('🛡AC Protect')
   initialize_session_state()
   config = st.session_state.config
-  auth_expander(config)
-
-  if 'app_id' in st.session_state.ads_data:
-    config_expander()
+  if not st.session_state.ui_state['valid_config']:
+    auth_expander(config)
+  if not st.session_state.is_auth and st.session_state.ui_state['valid_config']:
+    login(config)
+  if st.session_state.is_auth:
+    auth_expander(config)
+    if 'app_id' in st.session_state.ads_data:
+      config_expander()
 
 if __name__ == '__main__':
   main()

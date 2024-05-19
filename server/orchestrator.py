@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ from server.db.bq import BigQuery
 from server.logger import logger
 from server.rules.interval import IntervalEventsRule
 from server.rules.version_events import VersionsEventsRule
-from server.services.email import create_alerts_email_body
+from server.services.email import create_html_email
 from server.services.email import get_last_date_email_sent
 from server.services.email import send_email
 
@@ -53,71 +53,67 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   logger.info('---------------- Starting orchestrator ----------------')
 
   try:
-    logger.info('getting config - %s', config_yaml_path)
     config = get_config(config_yaml_path)
     validate_config(config)
-    logger.info('config is valid')
-  except FileNotFoundError as e:
-    logger.error('Error in getting config - File not found - %s',
-                 config_yaml_path)
-    logger.error(e)
+  except (FileNotFoundError, ValidationError) as e:
+    logger.error('Error during orchestration: %s', e)
     return False
-  except ValidationError as e:
-    logger.error('Error in config validation')
-    logger.error(e)
-    return False
-
-  auth = config['auth']
-  bq_config = config['bigquery']
-  apps = config['apps']
-  collectors = config['collectors']
 
   try:
-    bq_client = BigQuery(auth, bq_config)
-  except DefaultCredentialsError as e:
-    logger.error('Error in creating BigQuery client')
-    logger.error(e)
+    auth = config['auth']
+    bq_config = config['bigquery']
+    bq_client = BigQuery(auth, bq_config).connect()
+  except (DefaultCredentialsError, KeyError) as e:
+    logger.error('Error creating BigQuery client: %s', e)
     return False
 
-  collector_names = list(collectors.keys())
+  collector_names = list(config['collectors'].keys())
   for collector_name in collector_names:
-    logger.info('getting data from collector - %s', collector_name)
-    collector_config = collectors[collector_name]
-    overwrite = False
-    collector = None
-
-    if collector_name == 'gads':
-      overwrite = True
-      collector = GAdsCollector(auth, collector_config, bq_client)
-
-    if collector_name == 'ga4':
-      collector = GA4Collector(auth, collector_config, bq_client)
-
-    if collector:
+    logger.info(f'Running collector - {collector_name}')
+    try:
+      collector_config = config['collectors'][collector_name]
+      collector = GA4Collector(auth, collector_config, bq_client) if collector_name == 'ga4' else GAdsCollector(auth, collector_config, bq_client)
       df = collector.collect()
       df = collector.process(df)
-      collector.save(df, overwrite)
+      collector.save(df, collector_name == 'gads')  # Overwrite only for GAds
+    except Exception as e:  # Catch all exceptions for collectors
+      logger.error('Error running collector %s: %s', collector_name, e)
 
   for rule in RULES:
-    logger.info('running rule logic - %s', rule.__name__)
-    rule = rule(config)
-    rule.run()
+    logger.info(f'Running rule - {rule.__name__}')
+    try:
+      rule_obj = rule(config)
+      rule_obj.run()
+    except Exception as e:  # Catch all exceptions for rules
+      logger.error('Error running rule %s: %s', rule.__name__, e)
 
-  app_ids = list(apps.keys())
+  app_ids = list(config['apps'].keys())
   for app_id in app_ids:
-    last_date_email_sent = get_last_date_email_sent(bq_client, app_id)
-    app_config = apps[app_id]
-    recipients = app_config['alerts']['emails']
-    df_alerts = bq_client.get_alerts_for_app_since_date(app_id,
-                                                        last_date_email_sent)
-    if df_alerts:
-      logger.log('--- Sending alert emails ---')
-      body = create_alerts_email_body(df_alerts)
-      send_email(
-          subject=f'Alerts for {app_id}',
-          recipients=recipients,
-          body=body,
-          bq_client=bq_client,
-          app_id=app_id)
+    logger.info(f'Running for app_id - {app_id}')
+    try:
+      last_date_email_sent = get_last_date_email_sent(bq_client, app_id)
+      app_config = config['apps'][app_id]
+      recipients = app_config['alerts']['emails']
+      df_alerts = bq_client.get_alerts_for_app_since_date(app_id,
+                                                          last_date_email_sent)
+      if not df_alerts.empty:
+        logger.info(f'found alerts for {app_id}')
+        body = create_html_email(df_alerts)
 
+      logger.info(f'sending emails to - {recipients}')
+      send_email(
+        config=config,
+        sender='',
+        to=recipients,
+        subject=f'Alerts for {app_id}',
+        message_text=body,
+        bq_client=bq_client,
+        app_id=app_id)
+    except Exception as e:  # Catch all exceptions for sending emails
+      logger.error('Error sending email for app %s: %s', app_id, e)
   return True
+
+
+
+if __name__ == '__main__':
+  orchestrator()

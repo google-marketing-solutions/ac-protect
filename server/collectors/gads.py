@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,16 +14,15 @@
 ''' Defines a Collector class for Google Ads.'''
 from typing import Dict
 from typing import List
-from typing import Optional
 
 import pandas as pd
 from gaarf.api_clients import GoogleAdsApiClient
 from gaarf.query_executor import AdsReportFetcher
-from gaarf.report import GaarfReport
 
 from server.classes.collector import Collector
 from server.db.bq import BigQuery
 from server.db.tables import GADS_TABLE_NAME
+from server.logger import logger
 
 
 class GAdsCollector(Collector):
@@ -34,15 +33,8 @@ class GAdsCollector(Collector):
     self.bq_client = bq_client
 
     self.customer_id = str(auth['login_customer_id'])
-    self.start_date = collector_config['start_date']
-
-    google_ads_yaml = self.create_google_ads_yaml(auth)
-
-    self.client = GoogleAdsApiClient(
-        config_dict=google_ads_yaml, version=collector_config['version'])
-
-    self.report_fetcher = AdsReportFetcher(self.client)
-    self.expanded_mcc = self.report_fetcher.expand_mcc(self.customer_id)
+    self.version = collector_config['version']
+    self.google_ads_yaml = self.create_google_ads_yaml(auth)
 
   def collect(self) -> pd.DataFrame:
     ''' Collects all conversion actions from relevant campaigns in Google Ads.
@@ -50,11 +42,28 @@ class GAdsCollector(Collector):
     Returns:
       Pandas DataFrame of collected data.
     '''
-    campaigns = self.collect_campaigns()
-    conversion_action_ids = self._parse_conversion_actions_from_campaigns(
-        campaigns)
-    conversion_actions = self.collect_conversion_actions(
-        self.start_date, conversion_action_ids)
+    # Init report fetcher and customer_ids
+    report_fetcher = self.create_report_fetcher()
+    customer_ids = report_fetcher.expand_mcc(self.customer_id)
+
+    # Get relevant Conversion Actions Ids from Campaigns
+    campaigns_query = self.create_campaigns_query()
+    campaigns = report_fetcher.fetch(campaigns_query, customer_ids)
+    campaigns = campaigns.to_pandas()
+    conversion_action_resource_names = self._parse_conversion_actions_from_campaigns(
+      campaigns)
+
+    # Get Conversion Actions
+    conversion_actions = []
+    conversion_actions_queries = self.create_conversion_actions_queries(
+        customer_ids, conversion_action_resource_names)
+
+    for customer_id, query in conversion_actions_queries.items():
+      logger.info(f'getting conversion actions for customer id - {customer_id}')
+      resp = report_fetcher.fetch(query, [customer_id])
+      conversion_actions.append(resp.to_pandas())
+    conversion_actions = pd.concat(conversion_actions)
+
     return conversion_actions
 
   def process(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -79,11 +88,22 @@ class GAdsCollector(Collector):
       overwrite: Whether to overwrite existing data in the table. Defaults to
       True.
     '''
+    logger.info(f'gads collector - saving data to {GADS_TABLE_NAME}')
     self.bq_client.write_to_table(GADS_TABLE_NAME, df, overwrite)
     self.bq_client.update_last_run(self.name, self.type_)
 
+  def create_report_fetcher(self) -> AdsReportFetcher:
+    ''' Create Gaarf AdsReportFetcher to use for querying GAds
+
+    Returns:
+      Initialized AdsReportFetcher
+    '''
+    self.client = GoogleAdsApiClient(
+        config_dict=self.google_ads_yaml, version=self.version)
+    return AdsReportFetcher(self.client)
+
   def create_google_ads_yaml(self, auth: Dict) -> Dict[str, str]:
-    ''' Creates a dictionary representing the google ads yaml.
+    ''' Creates a dictionary representing the google ads yaml file.
 
     Args:
       auth: auth object from the config file
@@ -100,14 +120,15 @@ class GAdsCollector(Collector):
         'use_proto_plus': auth['use_proto_plus'],
     }
 
-  def collect_campaigns(self) -> pd.DataFrame:
-    ''' Query Google Ads for campaign data.
+  def create_campaigns_query(self) -> str:
+    ''' Create Google Ads query for campaign data.
 
     Returns:
-      Pandas DataFrame of campaign data, including campaign name, app id, and
+      Query string for campaign data, including campaign name, app id, and
       conversion actions in enabled campaigns.
     '''
-    query = """
+
+    return """
       SELECT
         campaign.name,
         campaign.app_campaign_setting.app_id,
@@ -119,24 +140,25 @@ class GAdsCollector(Collector):
         AND campaign.status = 'ENABLED'
       """
 
-    return self._run_query(query).to_pandas()
-
-  def collect_conversion_actions(self, time_frame_in_days: int,
-                                 conversion_action_ids: List) -> pd.DataFrame:
-    ''' Query Google Ads for conversion actions data.
+  def create_conversion_actions_queries(self,
+                                 customer_ids: List,
+                                 conversion_action_resource_names: List
+                                 ) -> dict:
+    ''' Create Google Ads query for conversion actions data.
 
     Returns:
-      Pandas DataFrame of conversion action data, including app id, property id,
+      Dictionary of {customer_id: query} where query is Google Ads query string
+      for conversion action data, including app id, property id,
       property name, event name, type, and last conversion date for all
       requested conversion actions.
     '''
 
-    conversion_actions = []
+    conversion_action_queries = {}
 
-    for customer_id in self.expanded_mcc:
+    for customer_id in customer_ids:
       conversion_action_ids_for_customer_id = (
-          self._get_conversion_action_ids_for_customer_id(
-              conversion_action_ids, customer_id))
+          self._get_conversion_action_resource_name_for_customer_id(
+              conversion_action_resource_names, customer_id))
 
       if conversion_action_ids_for_customer_id:
         query = f"""
@@ -156,28 +178,31 @@ class GAdsCollector(Collector):
             AND conversion_action.resource_name IN ('{conversion_action_ids_for_customer_id}')
 
         """
-        resp = self._run_query(query, customer_id)
-        if resp:
-          conversion_actions.append(resp.to_pandas())
+        conversion_action_queries[customer_id] = query
+    return conversion_action_queries
 
-    return pd.concat(conversion_actions)
+    #     resp = self._run_query(query, [customer_id])
+    #     if resp:
+    #       conversion_actions.append(resp.to_pandas())
 
-  def _run_query(self,
-                 query: str,
-                 customer_id: Optional[str] = None) -> GaarfReport:
-    ''' Send query to Google Ads
+    # return pd.concat(conversion_actions)
 
-    Args:
-      query: the GAQL query that we want to run
-      customer_id: Google Ads customer_id that we want to run the query for
+  # def _run_query(self,
+  #                report_fetcher,
+  #                query: str,
+  #                customer_ids: List) -> GaarfReport:
+  #   ''' Send query to Google Ads
 
-    Returns:
-      GaarfReport object with the query results
-    '''
+  #   Args:
+  #     query: the GAQL query that we want to run
+  #     customer_id: Google Ads customer_id that we want to run the query for
 
-    customer_ids = [customer_id] if customer_id else self.expanded_mcc
-    result = self.report_fetcher.fetch(query, customer_ids)
-    return result
+  #   Returns:
+  #     GaarfReport object with the query results
+  #   '''
+
+  #   result = report_fetcher.fetch(query, customer_ids)
+  #   return result
 
   def _parse_conversion_actions_from_campaigns(self, df: pd.DataFrame) -> List:
     ''' Helper function to extract the conversion actions from the campaign data
@@ -208,8 +233,15 @@ class GAdsCollector(Collector):
     Returns:
       'ANDROID', 'IOS' or ''
     '''
-    os = conversion_action_type.split('_')[1]
-    return os if os.upper() in ['ANDROID', 'IOS'] else ''
+    split = conversion_action_type.split('_')
+    if 'ANDROID' in split:
+      os = 'ANDROID'
+    elif 'IOS' in split:
+      os = 'IOS'
+    else:
+      os = ''
+    return os
+
 
   def _add_uid(self, df: pd.DataFrame) -> str:
     ''' Helper function that creates a uid from the OS, property Id and event
@@ -227,16 +259,20 @@ class GAdsCollector(Collector):
 
     return f'{os.lower()}_{property_id}_{event_name}'
 
-  def _get_conversion_action_ids_for_customer_id(
-      self, conversion_action_ids: List[str], customer_id: str) -> List[str]:
+  def _get_conversion_action_resource_name_for_customer_id(
+      self, conversion_action_resource_names: List[str],
+      customer_id: str) -> List[str]:
     ''' Extract the conversion action_ids for this customer_id
 
     Args:
-      conversion_action_ids: a list of conversion actions ids.
+      conversion_action_resource_names: a list of conversion actions resource
+      names.
       customer_id: the Google Ads customer ID
 
     Returns:
-      A subset of conversion_action_ids
+      A subset of conversion_action_resource_names
     '''
-    ids = [id for id in conversion_action_ids if str(customer_id) in id]
+    ids = [
+        id for id in conversion_action_resource_names if str(customer_id) in id
+    ]
     return "', '".join(ids)

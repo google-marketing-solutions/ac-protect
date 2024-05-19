@@ -69,13 +69,14 @@ def get_config(config_yaml_path: str = CONFIG_PATH) -> dict:
     A dictionary of the configuration. If there is an error in the yaml file, an
     empty dictionary is returned.
   '''
+  logger.info(f'getting config at - {config_yaml_path}')
   try:
     with smart_open.open(config_yaml_path, 'r') as f:
       config = yaml.safe_load(f)
     return config
-  except yaml.YAMLError as exc:
-    logger.warning(exc)
-  return {}
+  except (IOError, yaml.YAMLError) as exc:
+    logger.error(f'Error getting config: {exc}')
+    return {}
 
 
 def update_config(config: Dict, config_yaml_path=CONFIG_PATH):
@@ -87,8 +88,12 @@ def update_config(config: Dict, config_yaml_path=CONFIG_PATH):
     environment.
 
   '''
-  with smart_open.open(config_yaml_path, 'w', encoding='utf-8') as file:
-    yaml.dump(config, file, allow_unicode=True)
+  logger.info(f'Updating config at - {config_yaml_path}')
+  try:
+    with smart_open.open(config_yaml_path, 'w', encoding='utf-8') as file:
+      yaml.dump(config, file, allow_unicode=True)
+  except IOError as exc:
+    logger.error(f'Error updating config: {exc}')
 
 
 def validate_config(config: Dict[str, Any]):

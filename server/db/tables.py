@@ -15,8 +15,8 @@
 import dataclasses
 import datetime
 
-GA4_TABLE_NAME = 'ga4'
-GADS_TABLE_NAME = 'gads'
+GA4_TABLE_NAME = 'collector_ga4'
+GADS_TABLE_NAME = 'collector_gads'
 ALERTS_TABLE_NAME = 'alerts'
 
 @dataclasses.dataclass

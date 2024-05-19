@@ -9,9 +9,17 @@ pre-commit
 schema
 pytest
 pydantic
+beautifulsoup4
 
 streamlit
 python-dotenv
 google-api-python-client
 smart_open[gcs]
 google-ads
+google-cloud-logging
+
+
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client

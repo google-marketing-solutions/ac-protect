@@ -13,12 +13,13 @@
 # limitations under the License.
 ''' Defines the DB class for BigQuery.'''
 import datetime
+from datetime import timedelta
 from typing import Dict
 from typing import List
 from typing import Optional
 
 import pandas as pd
-from google.cloud import bigquery
+from google.cloud.bigquery import Client
 from google.cloud.bigquery import Dataset
 from google.cloud.bigquery import LoadJobConfig
 from google.cloud.exceptions import ClientError
@@ -38,17 +39,19 @@ class BigQuery(BaseDb):
   def __init__(self, auth: Dict, config: Dict):
     self.project_id = auth['project_id']
     self.dataset = config['dataset']
-    self.client = self.connect(self.project_id)
     super().__init__()
 
-  def connect(self, project_id: str) -> bigquery.Client:
+  def connect(self, project_id: Optional[str] = None) -> Client:
     ''' Connect to BigQuery
 
     Args:
       project_id: the Google Cloud project_id
     '''
+    if not project_id:
+      project_id = self.project_id
+
     if not hasattr(self, 'client'):
-      self.client = bigquery.Client(project=project_id)
+      self.client = Client(project=project_id)
     return self.client
 
   def get_dataset(self, dataset_id: Optional[str]) -> Dataset:
@@ -155,10 +158,12 @@ class BigQuery(BaseDb):
     )
 
     if df is None or df.empty or df['timestamp'].empty:
+      logger.info(f'no last run found for - {name}, {type_}')
       return None
 
     last_run = df['timestamp'][0].split(' ')[0]
     date_format = '%Y-%m-%d'
+
 
     return datetime.datetime.strptime(last_run, date_format)
 
@@ -192,6 +197,11 @@ class BigQuery(BaseDb):
       DataFrame with all alerts matching the criteria. Returns None if no Alerts
       are found.
     '''
+
+    if not date_:
+      logger.info(f'No date was given using default')
+      date_ = datetime.datetime.now() - timedelta(days=2)
+
     filter_ = f'app_id="{app_id}"'
 
     date_string = date_.strftime('%Y-%m-%d')

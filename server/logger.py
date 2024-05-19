@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,7 +14,13 @@
 ''' Logger setup for the service '''
 import logging
 
+from server.env import IS_GCP
+
+
+
 logger = logging.getLogger(__name__)
+
+logger.setLevel(logging.DEBUG)
 
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.DEBUG)
@@ -23,3 +29,13 @@ console_formatter = logging.Formatter('%(name)s - %(levelname)s - %(message)s')
 console_handler.setFormatter(console_formatter)
 
 logger.addHandler(console_handler)
+
+if IS_GCP:
+  import google.cloud.logging as cloud_logging
+
+  client = cloud_logging.Client()
+  cloud_handler = cloud_logging.handlers.CloudLoggingHandler(client)
+  cloud_handler.setLevel(logging.DEBUG)  # Set to DEBUG to capture all log levels
+  cloud_handler.setFormatter(console_formatter)
+
+  logger.addHandler(cloud_handler)
