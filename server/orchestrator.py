@@ -28,6 +28,8 @@ from server.collectors.gads import GAdsCollector
 from server.config import get_config
 from server.config import validate_config
 from server.db.bq import BigQuery
+from server.db.tables import GA4_TABLE_NAME
+from server.db.tables import GADS_TABLE_NAME
 from server.logger import logger
 from server.rules.interval import IntervalEventsRule
 from server.rules.version_events import VersionsEventsRule
@@ -72,10 +74,15 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     logger.info(f'Running collector - {collector_name}')
     try:
       collector_config = config['collectors'][collector_name]
-      collector = GA4Collector(auth, collector_config, bq_client) if collector_name == 'ga4' else GAdsCollector(auth, collector_config, bq_client)
+      collector = GA4Collector(
+          auth, collector_config,
+          bq_client) if collector_name == GA4_TABLE_NAME else GAdsCollector(
+              auth, collector_config, bq_client)
       df = collector.collect()
       df = collector.process(df)
-      collector.save(df, collector_name == 'gads')  # Overwrite only for GAds
+      overwrite = bool(
+          collector_name == GADS_TABLE_NAME)  # Overwrite only for GAds
+      collector.save(df, overwrite)
     except Exception as e:  # Catch all exceptions for collectors
       logger.error('Error running collector %s: %s', collector_name, e)
 

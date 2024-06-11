@@ -77,7 +77,7 @@ resource "google_bigquery_dataset" "dataset" {
 
 resource "google_bigquery_table" "collector_gads" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
-  table_id   = "gads"
+  table_id   = "collector_gads"
 
   time_partitioning {
     type = "DAY"
@@ -133,7 +133,7 @@ EOF
 
 resource "google_bigquery_table" "collector_ga4" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
-  table_id   = "ga4"
+  table_id   = "collector_ga4"
 
   time_partitioning {
     type = "DAY"
