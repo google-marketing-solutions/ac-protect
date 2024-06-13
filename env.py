@@ -19,8 +19,6 @@ from dotenv import find_dotenv
 from dotenv import load_dotenv
 
 PROJECT_ID = getenv('PROJECT_ID', '')
-APP_ENGINE_URL = getenv('APP_ENGINE_URL', '')
-DEBUG_MODE = getenv('DEBUG_MODE', 'True').lower() == 'true'
 
 IS_LOCAL = getenv('IS_LOCAL', 'True').lower() == 'true'
 if IS_LOCAL:
