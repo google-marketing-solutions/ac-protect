@@ -1,0 +1,19 @@
+auth:
+  client_id:
+  client_secret:
+  developer_token:
+  login_customer_id:
+  project_id:
+  project_number:
+  refresh_token:
+  use_proto_plus: true
+bigquery:
+  dataset: ac_protect
+  last_trigger_log: last_trigger_log
+collectors:
+  ga4:
+    properties: []
+  gads:
+    customer_id: null
+    start_date: 10
+    version: v15

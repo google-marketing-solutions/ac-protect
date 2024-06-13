@@ -5,7 +5,6 @@ server/tests/test_files
 pylintrc
 **/.DS_Store
 
-config.yaml
 .terraform*
 *tfstate*
 email_engine.zip
