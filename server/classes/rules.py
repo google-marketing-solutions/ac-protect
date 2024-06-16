@@ -40,8 +40,8 @@ class Rule(abc.ABC):
     self.type = 'rule'
     self.config = app_config
     #TODO - remove connection to DB from init
-    self.db_client = BigQuery(auth_config, bq_config).connect()
-
+    self.db_client = BigQuery(auth_config, bq_config)
+    self.db_client.connect()
 
   @abc.abstractmethod
   def run(self):
