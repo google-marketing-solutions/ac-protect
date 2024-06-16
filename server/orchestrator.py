@@ -30,6 +30,7 @@ from server.config import validate_config
 from server.db.bq import BigQuery
 from server.db.tables import GA4_TABLE_NAME
 from server.db.tables import GADS_TABLE_NAME
+from server.env import CONFIG_PATH
 from server.logger import logger
 from server.rules.interval import IntervalEventsRule
 from server.rules.version_events import VersionsEventsRule

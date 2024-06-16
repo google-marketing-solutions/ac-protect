@@ -22,7 +22,7 @@ import yaml
 from pydantic import BaseModel
 from pydantic import ValidationError
 
-from env import CONFIG_PATH
+from server.env import CONFIG_PATH
 from server.logger import logger
 
 class Auth(BaseModel):
