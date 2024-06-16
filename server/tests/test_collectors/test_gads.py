@@ -35,7 +35,7 @@ class TestGadsCollectorBase:
 
     assert collector.name == 'GAds-collector'
     assert collector.type_ == 'collector'
-    assert isinstance(collector.bq_client, BigQuery)
+    assert isinstance(collector.bq, BigQuery)
 
 
 class TestMainFunctions:

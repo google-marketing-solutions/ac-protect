@@ -22,7 +22,6 @@ from typing import Optional
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import ValidationError
 
-from env import CONFIG_PATH
 from server.collectors.ga4 import GA4Collector
 from server.collectors.gads import GAdsCollector
 from server.config import get_config
@@ -65,7 +64,8 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   try:
     auth = config['auth']
     bq_config = config['bigquery']
-    bq_client = BigQuery(auth, bq_config).connect()
+    bq = BigQuery(auth, bq_config)
+    bq.connect()
   except (DefaultCredentialsError, KeyError) as e:
     logger.error('Error creating BigQuery client: %s', e)
     return False
@@ -77,8 +77,8 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
       collector_config = config['collectors'][collector_name]
       collector = GA4Collector(
           auth, collector_config,
-          bq_client) if collector_name == GA4_TABLE_NAME else GAdsCollector(
-              auth, collector_config, bq_client)
+          bq) if collector_name == GA4_TABLE_NAME else GAdsCollector(
+              auth, collector_config, bq)
       df = collector.collect()
       df = collector.process(df)
       overwrite = bool(
@@ -99,10 +99,10 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   for app_id in app_ids:
     logger.info(f'Running for app_id - {app_id}')
     try:
-      last_date_email_sent = get_last_date_email_sent(bq_client, app_id)
+      last_date_email_sent = get_last_date_email_sent(bq, app_id)
       app_config = config['apps'][app_id]
       recipients = app_config['alerts']['emails']
-      df_alerts = bq_client.get_alerts_for_app_since_date(app_id,
+      df_alerts = bq.get_alerts_for_app_since_date(app_id,
                                                           last_date_email_sent)
       if not df_alerts.empty:
         logger.info(f'found alerts for {app_id}')
@@ -115,7 +115,7 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
           to=recipients,
           subject=f'Alerts for {app_id}',
           message_text=body,
-          bq_client=bq_client,
+          bq=bq,
           app_id=app_id)
     except Exception as e:  # Catch all exceptions for sending emails
       logger.error('Error sending email for app %s: %s', app_id, e)

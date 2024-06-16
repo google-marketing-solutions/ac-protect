@@ -40,13 +40,13 @@ from server.utils import Scopes
 class GA4Collector(Collector):
   ''' Collector class for GA4  '''
 
-  def __init__(self, auth: Dict, config: Dict, bq_client: BigQuery) -> None:
+  def __init__(self, auth: Dict, config: Dict, bq: BigQuery) -> None:
     super().__init__('GA4-collector', 'collector')
 
     self.ga4_config = config
     self.creds_info = self.get_creds_info(auth)
 
-    self.bq_client = bq_client
+    self.bq = bq
     self.columns = [field.name for field in fields(Ga4Table)]
 
   def collect(self) -> pd.DataFrame:
@@ -61,9 +61,9 @@ class GA4Collector(Collector):
     credentials = Credentials.from_authorized_user_info(info=self.creds_info)
     client = BetaAnalyticsDataClient(credentials=credentials)
 
-    properties = self.bq_client.get_values_from_table(
+    properties = self.bq.get_values_from_table(
         GADS_TABLE_NAME, ['property_id'])['property_id'].unique().tolist()
-    events = self.bq_client.get_values_from_table(
+    events = self.bq.get_values_from_table(
         GADS_TABLE_NAME, ['event_name'])['event_name'].unique().tolist()
     rows = []
 
@@ -110,8 +110,8 @@ class GA4Collector(Collector):
       False.
     '''
     logger.info(f'ga4 collector - saving data to {GA4_TABLE_NAME}')
-    self.bq_client.write_to_table(GA4_TABLE_NAME, df, overwrite)
-    self.bq_client.update_last_run(self.name, self.type_)
+    self.bq.write_to_table(GA4_TABLE_NAME, df, overwrite)
+    self.bq.update_last_run(self.name, self.type_)
 
   def get_creds_info(self, auth: Dict) -> Dict:
     ''' Creates a credentials dictionary in the relevant format for

@@ -28,9 +28,9 @@ from server.logger import logger
 class GAdsCollector(Collector):
   ''' Collector class for Google Ads.'''
 
-  def __init__(self, auth: Dict, collector_config: Dict, bq_client: BigQuery):
+  def __init__(self, auth: Dict, collector_config: Dict, bq: BigQuery):
     super().__init__('GAds-collector', 'collector')
-    self.bq_client = bq_client
+    self.bq = bq
 
     self.customer_id = str(auth['login_customer_id'])
     self.version = collector_config['version']
@@ -89,8 +89,8 @@ class GAdsCollector(Collector):
       True.
     '''
     logger.info(f'gads collector - saving data to {GADS_TABLE_NAME}')
-    self.bq_client.write_to_table(GADS_TABLE_NAME, df, overwrite)
-    self.bq_client.update_last_run(self.name, self.type_)
+    self.bq.write_to_table(GADS_TABLE_NAME, df, overwrite)
+    self.bq.update_last_run(self.name, self.type_)
 
   def create_report_fetcher(self) -> AdsReportFetcher:
     ''' Create Gaarf AdsReportFetcher to use for querying GAds

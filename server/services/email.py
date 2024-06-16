@@ -106,7 +106,7 @@ def send_message(config:dict, message:MIMEMultipart) -> Optional[dict]:
     return None
 
 def send_email(config: dict, sender: str, to: List[str], subject: str,
-               message_text: str, bq_client: BigQuery, app_id: str):
+               message_text: str, bq: BigQuery, app_id: str):
   """ Main function to send the create, send and log the email message
 
   Args:
@@ -115,28 +115,28 @@ def send_email(config: dict, sender: str, to: List[str], subject: str,
     to: list of emails to send the email to
     subject: the subject of the email
     message_text: the body of the email
-    bq_client: a BigQuery client to update the last run
+    bq: a BigQuery object to update the last run
     app_id: the app_id
   """
   message = create_message(sender, to, subject, message_text)
   send_message(config, message)
 
   # TODO - move all bq updates to orchestrator
-  bq_client.update_last_run('Email', f'service-{app_id}')
+  bq.update_last_run('Email', f'service-{app_id}')
 
 
-def get_last_date_email_sent(bq_client: BigQuery,
+def get_last_date_email_sent(bq: BigQuery,
                              app_id: str) -> Optional[datetime]:
   """ Get the date that the last email was sent for a specific app Id
 
   Args:
-    bq_client: BigQuery client
+    bq: BigQuery object
     app_id: App Id to lookup
 
   Results:
     Date the last email was sent.
   """
-  return bq_client.get_last_run('Email', f'service-{app_id}')
+  return bq.get_last_run('Email', f'service-{app_id}')
 
 
 def create_alerts_email_body(df: pd.DataFrame) -> str:

@@ -57,7 +57,7 @@ class TestGa4CollecterFunction:
     mock_query_job_event_name = _create_mock_query_job_event_name()
 
     # Set up the mock client to return the mock query job
-    collector.bq_client.client.query.side_effect = [
+    collector.bq.client.query.side_effect = [
         mock_query_job_properties, mock_query_job_event_name
     ]
 
@@ -87,7 +87,7 @@ class TestGa4CollecterFunction:
     mock_query_job_event_name = _create_mock_query_job_event_name()
 
     # Set up the mock client to return the mock query job
-    collector.bq_client.client.query.side_effect = [
+    collector.bq.client.query.side_effect = [
         mock_query_job_properties, mock_query_job_event_name
     ]
 
