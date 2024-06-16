@@ -107,15 +107,15 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
         logger.info(f'found alerts for {app_id}')
         body = create_html_email(df_alerts)
 
-      logger.info(f'sending emails to - {recipients}')
-      send_email(
-        config=config,
-        sender='',
-        to=recipients,
-        subject=f'Alerts for {app_id}',
-        message_text=body,
-        bq_client=bq_client,
-        app_id=app_id)
+        logger.info(f'sending emails to - {recipients}')
+        send_email(
+          config=config,
+          sender='',
+          to=recipients,
+          subject=f'Alerts for {app_id}',
+          message_text=body,
+          bq_client=bq_client,
+          app_id=app_id)
     except Exception as e:  # Catch all exceptions for sending emails
       logger.error('Error sending email for app %s: %s', app_id, e)
   return True
