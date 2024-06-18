@@ -80,12 +80,12 @@ class Config:
 
     self.collectors = config.get(
         'collectors', {
-            'gads': {
+            'collector_gads': {
                 'version': '15',
                 'customer_id': '',
                 'start_date': '10'
             },
-            'ga4': {
+            'collector_ga4': {
                 'properties': []
             }
         })
