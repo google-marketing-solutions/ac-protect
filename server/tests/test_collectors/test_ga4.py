@@ -102,24 +102,6 @@ class TestGa4CollecterFunction:
     assert all(key in columns for key in ['uid', 'date_added'])
     assert pd.api.types.is_integer_dtype(df['event_count'])
 
-  def test_add_uid(self, collector):
-    data = {
-        'os': 'Android',
-        'property_id': '123456789',
-        'event_name': 'first_open'
-    }
-    attr = SimpleNamespace(**data)
-    uid_str = f'{attr.os.lower()}_{attr.property_id}_{attr.event_name}'
-
-    df = pd.DataFrame.from_dict([data])
-    uid = df.apply(collector._add_uid, axis=1)
-    assert uid[0] == uid_str
-
-  def test_add_added_date_time(self, collector):
-    df = pd.DataFrame.from_dict([{'test': 'test'}])
-    date_added = df.apply(collector._add_added_time, axis=1)
-    assert date_added[0] == str(datetime.now().strftime('%Y-%m-%d'))
-
   def test_get_creds_info(self, auth, collector):
     creds_info = collector.get_creds_info(auth)
     assert isinstance(creds_info, dict)

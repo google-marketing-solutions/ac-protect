@@ -11,7 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-''' Defines a Collector class for GA4.'''
+""" Defines a Collector class for GA4."""
 from dataclasses import fields
 from datetime import datetime
 from typing import Dict
@@ -38,7 +38,7 @@ from server.utils import Scopes
 
 
 class GA4Collector(Collector):
-  ''' Collector class for GA4  '''
+  """ Collector class for GA4  """
 
   def __init__(self, auth: Dict, config: Dict, bq: BigQuery) -> None:
     super().__init__('GA4-collector', 'collector')
@@ -50,25 +50,28 @@ class GA4Collector(Collector):
     self.columns = [field.name for field in fields(Ga4Table)]
 
   def collect(self) -> pd.DataFrame:
-    ''' Collects data for events in GA4 property ids.
+    """ Collects data for events in GA4 property ids.
 
     Data for which events and property ids to run on is extracted from db.
 
     Returns:
       Pandas DataFrame of collected data.
-    '''
-
+    """
+    logger.info('GA4 Collector - Running "collect"')
     credentials = Credentials.from_authorized_user_info(info=self.creds_info)
     client = BetaAnalyticsDataClient(credentials=credentials)
 
+    logger.info('GA4 Collector - Getting data from properties table"')
     properties = self.bq.get_values_from_table(
         GADS_TABLE_NAME, ['property_id'])['property_id'].unique().tolist()
+
+    logger.info('GA4 Collector - Getting data from events table"')
     events = self.bq.get_values_from_table(
         GADS_TABLE_NAME, ['event_name'])['event_name'].unique().tolist()
     rows = []
 
     for property_id in properties:
-      logger.info(f'getting data for property - {property_id}')
+      logger.info('GA4 Collector - Getting data for property - %s', property_id)
       request = self.create_request(property_id, events)
       try:
         response = client.run_report(request)
@@ -80,13 +83,15 @@ class GA4Collector(Collector):
       except PermissionDenied as e:
         logger.info('Error accessing property ID %s - %s', property_id,
                     e.errors)
-        #TODO - What happends to the whole process if there is an error in this collector?
+        #TODO - What happens to the whole process if there is an error in
+        # this collector?
 
     df = pd.DataFrame(rows, columns=self.columns[:-2])
     return df
 
   def process(self, df: pd.DataFrame) -> pd.DataFrame:
-    ''' Adds uid and date_added columns and ensures "event_count" is of type int.
+    """ Adds uid and date_added columns and ensures "event_count" is of type
+    int.
 
     Args:
       df: Pandas DataFrame with GA4 raw data.
@@ -94,27 +99,32 @@ class GA4Collector(Collector):
     Returns:
       Original DataFrame with 2 new columns "uid" and "date_added" and updated
       "event_count".
-    '''
+    """
 
     df['event_count'] = df['event_count'].astype(int)
-    df['uid'] = df.apply(self._add_uid, axis=1)
-    df['date_added'] = df.apply(self._add_added_time, axis=1)
+    df['uid'] = df.apply(
+      lambda row:
+        f'{row["os"].lower()}_{row["property_id"]}_{row["event_name"]}',
+        axis=1
+      )
+    df['date_added'] = df.apply(
+        lambda _: str(datetime.now().strftime('%Y-%m-%d')), axis=1)
     return df
 
   def save(self, df: pd.DataFrame, overwrite: bool = False) -> None:
-    ''' Saves GA4 data to relevant table in BigQuery and updates last_run table
+    """ Saves GA4 data to relevant table in BigQuery and updates last_run table
 
     Args:
       df: DataFrame to write to BigQuery.
       overwrite: Whether to overwrite existing data in the table. Defaults to
       False.
-    '''
-    logger.info(f'ga4 collector - saving data to {GA4_TABLE_NAME}')
+    """
+    logger.info('GA4 Collector - saving data to %s',GA4_TABLE_NAME)
     self.bq.write_to_table(GA4_TABLE_NAME, df, overwrite)
     self.bq.update_last_run(self.name, self.type_)
 
   def get_creds_info(self, auth: Dict) -> Dict:
-    ''' Creates a credentials dictionary in the relevant format for
+    """ Creates a credentials dictionary in the relevant format for
     "Credentials.from_authorized_user_info"
 
     Args:
@@ -122,7 +132,7 @@ class GA4Collector(Collector):
 
     Returns:
       A dictionary in the relevant format.
-    '''
+    """
 
     return {
         'client_id': auth['client_id'],
@@ -132,7 +142,7 @@ class GA4Collector(Collector):
     }
 
   def create_request(self, property_id: str, events: List[str]):
-    ''' Creates the request in GA4 format. Checks data for the last day.
+    """ Creates the request in GA4 format. Checks data for the last day.
 
     Args:
       property_id: The GA4 property_id that we are building the request for.
@@ -140,7 +150,7 @@ class GA4Collector(Collector):
 
     Returns:
       A RunReportRequest object.
-    '''
+    """
 
     return RunReportRequest(
         property=f'properties/{property_id}',
@@ -155,30 +165,3 @@ class GA4Collector(Collector):
             filter=Filter(
                 field_name='eventName',
                 in_list_filter=Filter.InListFilter(values=events)),))
-
-  def _add_uid(self, df: pd.DataFrame) -> str:
-    ''' Helper method to create a uid.
-
-    Args:
-      df: Pandas Dataframe with GA4 data for "os", "property_id" and
-      "eventName".
-
-    Returns:
-      A string representing the uid.
-
-    '''
-    os = df['os']
-    property_id = df['property_id']
-    event_name = df['event_name']
-
-    return f'{os.lower()}_{property_id}_{event_name}'
-
-  def _add_added_time(self, df: pd.DataFrame) -> str:
-    ''' Helper method to create a formated string of the current date.
-
-    Returns:
-      A string representing the current date.
-
-    '''
-
-    return str(datetime.now().strftime('%Y-%m-%d'))
