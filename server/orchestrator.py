@@ -34,7 +34,7 @@ from server.logger import logger
 from server.rules.interval import IntervalEventsRule
 from server.rules.version_events import VersionsEventsRule
 from server.services.email import create_html_email
-from server.services.email import get_last_date_email_sent
+from server.services.email import get_last_date_time_email_sent
 from server.services.email import send_email
 
 RULES = [IntervalEventsRule, VersionsEventsRule]
@@ -93,11 +93,11 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   app_ids = list(config['apps'].keys())
   for app_id in app_ids:
     logger.info(f'Running for app_id - {app_id}')
-    last_date_email_sent = get_last_date_email_sent(bq, app_id)
+    last_date_time_sent = get_last_date_time_email_sent(bq, app_id)
     app_config = config['apps'][app_id]
     recipients = app_config['alerts']['emails']
-    df_alerts = bq.get_alerts_for_app_since_date(app_id,
-                                                        last_date_email_sent)
+    df_alerts = bq.get_alerts_for_app_since_date_time(app_id,
+                                                        last_date_time_sent)
     if not df_alerts.empty:
       logger.info(f'found alerts for {app_id}')
       body = create_html_email(df_alerts)

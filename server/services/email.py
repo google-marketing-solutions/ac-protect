@@ -125,7 +125,7 @@ def send_email(config: dict, sender: str, to: List[str], subject: str,
   bq.update_last_run('Email', f'service-{app_id}')
 
 
-def get_last_date_email_sent(bq: BigQuery,
+def get_last_date_time_email_sent(bq: BigQuery,
                              app_id: str) -> Optional[datetime]:
   """ Get the date that the last email was sent for a specific app Id
 

@@ -158,14 +158,14 @@ class BigQuery(BaseDb):
     )
 
     if df is None or df.empty or df['timestamp'].empty:
-      logger.info(f'no last run found for - {name}, {type_}')
+      logger.info('No last run found for - %s, %s', name, type_)
       return None
 
-    last_run = df['timestamp'][0].split(' ')[0]
-    date_format = '%Y-%m-%d'
+    last_run = df['timestamp'][0].split('.')[0]
+    date_time_format = '%Y-%m-%d %H:%M:%S'
 
 
-    return datetime.datetime.strptime(last_run, date_format)
+    return datetime.datetime.strptime(last_run, date_time_format)
 
   def update_last_run(self, name: str, type_: str) -> bool:
     ''' Updates the AC Protect log on the last time the collector, rule or
@@ -185,27 +185,27 @@ class BigQuery(BaseDb):
     df = pd.DataFrame(log, columns=['name', 'type', 'timestamp'])
     return self.write_to_table(self.log, df)
 
-  def get_alerts_for_app_since_date(
-      self, app_id: str, date_: datetime.datetime) -> Optional[pd.DataFrame]:
-    ''' Get all the Alerts triggered for a specific app since "date_""
+  def get_alerts_for_app_since_date_time(
+      self, app_id: str, date_time: datetime.datetime) -> Optional[pd.DataFrame]:
+    ''' Get all the Alerts triggered for a specific app since "date_time"
 
     Args:
       app_id: the App Id to search for
-      date_: date to search from (until today)
+      date_time: datetime to search from (until now)
 
     Returns:
       DataFrame with all alerts matching the criteria. Returns None if no Alerts
       are found.
     '''
 
-    if not date_:
-      logger.info(f'No date was given using default')
-      date_ = datetime.datetime.now() - timedelta(days=2)
+    if not date_time:
+      logger.info('No date was given using default')
+      date_time = datetime.datetime.now() - timedelta(days=2)
 
     filter_ = f'app_id="{app_id}"'
 
-    date_string = date_.strftime('%Y-%m-%d')
-    filter_ += f' AND timestamp >= CAST(\'{date_string}\' AS DATETIME FORMAT \'YYYY-MM-DD\')'
+    date_string = date_time.strftime('%Y-%m-%d %H:%M:%S')
+    filter_ += f' AND timestamp >= CAST(\'{date_string}\' AS DATETIME FORMAT \'YYYY-MM-DD HH24:MI:SS\')'
 
     return self.get_values_from_table(table_id=ALERTS_TABLE_NAME, where=filter_)
 
