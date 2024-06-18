@@ -72,53 +72,45 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
 
   collector_names = list(config['collectors'].keys())
   for collector_name in collector_names:
-    logger.info(f'Running collector - {collector_name}')
-    try:
-      collector_config = config['collectors'][collector_name]
-      collector = GA4Collector(
-          auth, collector_config,
-          bq) if collector_name == GA4_TABLE_NAME else GAdsCollector(
-              auth, collector_config, bq)
-      df = collector.collect()
+    logger.info('Running collector - %s',collector_name)
+    # try:
+    collector_config = config['collectors'][collector_name]
+    collector = GA4Collector(
+        auth, collector_config,
+        bq) if collector_name == GA4_TABLE_NAME else GAdsCollector(
+            auth, collector_config, bq)
+    df = collector.collect()
+    if not df.empty:
       df = collector.process(df)
-      overwrite = bool(
-          collector_name == GADS_TABLE_NAME)  # Overwrite only for GAds
+      overwrite = bool(collector_name == GADS_TABLE_NAME)  # Overwrite only for GAds
       collector.save(df, overwrite)
-    except Exception as e:  # Catch all exceptions for collectors
-      logger.error('Error running collector %s: %s', collector_name, e)
 
   for rule in RULES:
     logger.info(f'Running rule - {rule.__name__}')
-    try:
-      rule_obj = rule(config)
-      rule_obj.run()
-    except Exception as e:  # Catch all exceptions for rules
-      logger.error('Error running rule %s: %s', rule.__name__, e)
+    rule_obj = rule(config)
+    rule_obj.run()
 
   app_ids = list(config['apps'].keys())
   for app_id in app_ids:
     logger.info(f'Running for app_id - {app_id}')
-    try:
-      last_date_email_sent = get_last_date_email_sent(bq, app_id)
-      app_config = config['apps'][app_id]
-      recipients = app_config['alerts']['emails']
-      df_alerts = bq.get_alerts_for_app_since_date(app_id,
-                                                          last_date_email_sent)
-      if not df_alerts.empty:
-        logger.info(f'found alerts for {app_id}')
-        body = create_html_email(df_alerts)
+    last_date_email_sent = get_last_date_email_sent(bq, app_id)
+    app_config = config['apps'][app_id]
+    recipients = app_config['alerts']['emails']
+    df_alerts = bq.get_alerts_for_app_since_date(app_id,
+                                                        last_date_email_sent)
+    if not df_alerts.empty:
+      logger.info(f'found alerts for {app_id}')
+      body = create_html_email(df_alerts)
 
-        logger.info(f'sending emails to - {recipients}')
-        send_email(
-          config=config,
-          sender='',
-          to=recipients,
-          subject=f'Alerts for {app_id}',
-          message_text=body,
-          bq=bq,
-          app_id=app_id)
-    except Exception as e:  # Catch all exceptions for sending emails
-      logger.error('Error sending email for app %s: %s', app_id, e)
+      logger.info(f'sending emails to - {recipients}')
+      send_email(
+        config=config,
+        sender='',
+        to=recipients,
+        subject=f'Alerts for {app_id}',
+        message_text=body,
+        bq=bq,
+        app_id=app_id)
   return True
 
 
