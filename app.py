@@ -55,7 +55,7 @@ def initialize_session_state():
     st.session_state.ads_data = {}
     if st.session_state.ui_state['valid_config']:
       get_ads_data(st.session_state.config.auth,
-                 st.session_state.config.collectors['gads'],
+                 st.session_state.config.collectors['collector_gads'],
                  st.session_state.config.bigquery)
 
 def get_ads_data(auth, collector_config, bq_config):
@@ -127,7 +127,7 @@ def authenticate(config_params):
   validate_config()
   if st.session_state.ui_state['valid_config']:
     get_ads_data(st.session_state.config.auth,
-                 st.session_state.config.collectors['gads'],
+                 st.session_state.config.collectors['collector_gads'],
                  st.session_state.config.bigquery)
 
 
@@ -135,15 +135,15 @@ def reset_config():
   st.session_state.ui_state['valid_config'] = False
 
 def valid_emails(emails):
-    for email in emails:
-      email = email.replace(' ', '')
-      if not email:
-        return False
-      elif '@' not in email:
-        return False
-      elif '.' not in email.split('@')[1]:
-        return False
-    return True
+  for email in emails:
+    email = email.replace(' ', '')
+    if not email:
+      return False
+    elif '@' not in email:
+      return False
+    elif '.' not in email.split('@')[1]:
+      return False
+  return True
 
 
 def auth_expander(config):
@@ -323,7 +323,7 @@ def show_ads_data():
 @st.cache_data
 def get_app_ids():
   return get_ads_app_ids(st.session_state.config.auth,
-                         st.session_state.config.collectors['gads'],
+                         st.session_state.config.collectors['collector_gads'],
                          st.session_state.config.bigquery)
 
 
