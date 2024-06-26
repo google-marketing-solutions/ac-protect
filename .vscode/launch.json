@@ -19,6 +19,17 @@
       "env": {
           "PYTHONPATH": "${workspaceFolder}"
       }
+    },
+    {
+      "name": "Python: Orch",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/server/orchestrator.py",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "env": {
+          "PYTHONPATH": "${workspaceFolder}"
+      }
     }
   ]
 }
