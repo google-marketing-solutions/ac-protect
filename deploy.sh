@@ -31,6 +31,8 @@ create_image() {
 
 run_tf() {
     echo -e "${COLOR}Creating Infra...${NC}"
+    gcloud services enable googleads.googleapis.com
+    gcloud services enable analyticsdata.googleapis.com
     gcloud services enable gmail.googleapis.com
     gcloud services enable run.googleapis.com
     gcloud services enable bigquery.googleapis.com
