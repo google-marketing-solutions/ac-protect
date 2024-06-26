@@ -11,9 +11,9 @@ bigquery:
   dataset: ac_protect
   last_trigger_log: last_trigger_log
 collectors:
-  ga4:
+  collector_ga4:
     properties: []
-  gads:
+  collector_gads:
     customer_id: null
     start_date: 10
     version: v15
