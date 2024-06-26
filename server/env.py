@@ -29,7 +29,7 @@ PROJECT_ID = getenv('PROJECT_ID', '')
 if not IS_GCP:
   load_dotenv(dotenv_path=find_dotenv(), override=True)
 
-LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.resolve()}/config.yaml'
+LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.parent.resolve()}/config.yaml'
 REMOTE_CONFIG_PATH = f'gs://{PROJECT_ID}/ac-protect/config.yaml'
 CONFIG_FILE_PATH = REMOTE_CONFIG_PATH if PROJECT_ID else LOCAL_CONFIG_PATH
 CONFIG_PATH = getenv('CONFIG_PATH', CONFIG_FILE_PATH)
