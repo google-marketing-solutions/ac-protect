@@ -11,17 +11,18 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-''' Defines the tables that are used in AC Protect.'''
+"""Defines the tables that are used in AC Protect."""
 import dataclasses
 import datetime
 
 GA4_TABLE_NAME = 'collector_ga4'
 GADS_TABLE_NAME = 'collector_gads'
+APP_STORE_TABLE_NAME = 'collector_app_store'
 ALERTS_TABLE_NAME = 'alerts'
 
 @dataclasses.dataclass
 class Ga4Table:
-  ''' Defines Google Analytics table schema.'''
+  """Defines Google Analytics table schema."""
   property_id: int
   os: str
   app_version: str
@@ -33,7 +34,7 @@ class Ga4Table:
 
 @dataclasses.dataclass
 class GadsTable:
-  ''' Defines Google Ads table schema.'''
+  """Defines Google Ads table schema."""
   app_id: str
   property_id: int
   property_name: str
@@ -45,8 +46,20 @@ class GadsTable:
 
 
 @dataclasses.dataclass
+class AppStoreTable:
+  """Defines the App Store Table schema.
+
+  The table holds version information for each App Store app the solution has
+  access to and when it was last updated.
+  """
+  app_id: str
+  version: str
+  timestamp: datetime.datetime
+
+
+@dataclasses.dataclass
 class AlertsTable:
-  ''' Defines Alerts table schema.'''
+  """Defines Alerts table schema."""
   app_id: str
   rule_name: str
   trigger: str
@@ -57,9 +70,10 @@ class AlertsTable:
 
 @dataclasses.dataclass
 class LastTriggerLogTable:
-  ''' Defines Last Trigger Log table schema. This table logs when each collector
-   / rule / service last ran.
-  '''
+  """Defines Last Trigger Log table schema.
+
+  This table logs when each collector / rule / service last ran.
+  """
   name: str
   type: str
   timestamp: str
