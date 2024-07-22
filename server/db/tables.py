@@ -18,6 +18,7 @@ import datetime
 GA4_TABLE_NAME = 'collector_ga4'
 GADS_TABLE_NAME = 'collector_gads'
 APP_STORE_TABLE_NAME = 'collector_app_store'
+PLAY_STORE_TABLE_NAME = 'collector_play_store'
 ALERTS_TABLE_NAME = 'alerts'
 
 @dataclasses.dataclass
@@ -54,6 +55,19 @@ class AppStoreTable:
   """
   app_id: str
   version: str
+  timestamp: datetime.datetime
+
+
+@dataclasses.dataclass
+class PlayStoreTable:
+  """ Defines the Play Store Table schema
+
+  The table holds version information for each Play Store app
+  the solution has access to and when it was last updated.
+  """
+  app_id: str
+  version: str
+  track: str
   timestamp: datetime.datetime
 
 
