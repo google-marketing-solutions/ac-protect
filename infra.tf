@@ -181,6 +181,36 @@ EOF
 
 }
 
+resource "google_bigquery_table" "collector_app_store" {
+  dataset_id = google_bigquery_dataset.dataset.dataset_id
+  table_id   = "collector_app_store"
+
+  time_partitioning {
+    type = "DAY"
+  }
+
+  schema = <<EOF
+[
+  {
+    "name": "app_id",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "version",
+    "type": "STRING",
+    "mode": "REQUIRED"
+  },
+  {
+    "name": "timestamp",
+    "type": "DATETIME",
+    "mode": "REQUIRED"
+  }
+]
+EOF
+
+}
+
 resource "google_bigquery_table" "alerts" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "alerts"
