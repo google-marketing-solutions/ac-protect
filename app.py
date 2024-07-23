@@ -133,6 +133,7 @@ def authenticate(config_params):
 
 def reset_config():
   st.session_state.ui_state['valid_config'] = False
+  st.session_state.is_auth = False
 
 def valid_emails(emails):
   for email in emails:
@@ -153,6 +154,7 @@ def auth_expander(config):
         'allowed users emails',
       value=', '.join(st.session_state.config.users),
         key='users')
+      users = users.replace(" ", "")
       users = users.split(',')
       valid_users = valid_emails(users)
       if not valid_users:
