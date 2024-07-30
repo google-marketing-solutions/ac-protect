@@ -1,0 +1,16 @@
+app_id,property_id,property_name,event_name,type,last_conversion_date,os,uid
+com.josper.gomusic,912210201,GoMusic,first_open,FIREBASE_ANDROID_FIRST_OPEN,2024-07-27,ANDROID,android_912210201_first_open
+com.josper.gomusic,912210201,GoMusic,subscribe,FIREBASE_ANDROID_CUSTOM,2024-07-27,ANDROID,android_912210201_subscribe
+com.josper.gomusic,912210201,GoMusic,in_app_purchase,FIREBASE_ANDROID_IN_APP_PURCHASE,2024-07-27,ANDROID,android_912210201_in_app_purchase
+com.josper.gomusic,912210201,GoMusic,level_10,FIREBASE_ANDROID_CUSTOM,2024-07-27,ANDROID,android_912210201_level_10
+com.josper.gomusic,912210201,GoMusic,level_30,FIREBASE_ANDROID_CUSTOM,2024-07-27,ANDROID,android_912210201_level_30
+1029384756,912210201,GoMusic,first_open,FIREBASE_IOS_FIRST_OPEN,2024-07-27,IOS,ios_912210201_first_open
+1029384756,912210201,GoMusic,subscribe,FIREBASE_IOS_CUSTOM,2024-07-25,IOS,ios_912210201_subscribe
+1029384756,912210201,GoMusic,level_5,FIREBASE_IOS_CUSTOM,2024-07-25,IOS,ios_912210201_level_5
+1029384756,912210201,GoMusic,level_20,FIREBASE_IOS_CUSTOM,2024-07-25,IOS,ios_912210201_level_20
+com.markdown.editor,588010544,Markdown Editor,first_open,FIREBASE_ANDROID_FIRST_OPEN,2024-07-27,ANDROID,android_588010544_first_open
+com.markdown.editor,588010544,Markdown Editor,in_app_purchase,FIREBASE_ANDROID_IN_APP_PURCHASE,2024-07-27,ANDROID,android_588010544_in_app_purchase
+1981237465,881576146,Buy More,first_open,FIREBASE_IOS_FIRST_OPEN,2024-07-27,IOS,ios_881576146_first_open
+1981237465,881576146,Buy More,add_to_cart,FIREBASE_IOS_CUSTOM,2024-07-27,IOS,ios_881576146_add_to_cart
+1981237465,881576146,Buy More,in_app_purchase,FIREBASE_IOS_IN_APP_PURCHASE,2024-07-27,IOS,ios_881576146_in_app_purchase
+1981237465,881576146,Buy More,large_cart,FIREBASE_IOS_CUSTOM,2024-07-27,IOS,ios_881576146_large_cart
