@@ -1,9 +1,9 @@
 app_id,version,track,timestamp
-com.josper.gomusic,13,production,2024-07-28T11:01:02.012345
-com.josper.gomusic,12,production,2024-07-27T11:01:02.012345
-com.josper.gomusic,11,beta,2024-07-26T11:01:02.012345
-com.josper.gomusic,10,production,2024-07-25T11:01:02.012345
-com.markdown.editor,33,production,2024-07-28T11:01:02.012345
-com.markdown.editor,32,production,2024-07-27T11:01:02.012345
-com.markdown.editor,31,beta,2024-07-26T11:01:02.012345
-com.markdown.editor,30,production,2024-07-25T11:01:02.012345
+com.josper.gomusic,13,production,2024-07-28T00:00:00.000000
+com.josper.gomusic,12,production,2024-07-27T00:00:00.000000
+com.josper.gomusic,11,beta,2024-07-26T00:00:00.000000
+com.josper.gomusic,10,production,2024-07-25T00:00:00.000000
+com.markdown.editor,33,production,2024-07-28T00:00:00.000000
+com.markdown.editor,32,production,2024-07-27T00:00:00.000000
+com.markdown.editor,31,beta,2024-07-26T00:00:00.000000
+com.markdown.editor,30,production,2024-07-25T00:00:00.000000

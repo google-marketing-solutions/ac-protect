@@ -22,22 +22,23 @@ from typing import Optional
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import ValidationError
 
+from server.collectors.app_store import AppStoreCollector
 from server.collectors.ga4 import GA4Collector
 from server.collectors.gads import GAdsCollector
+from server.collectors.play_store import PlayStoreCollector
 from server.config import get_config
 from server.config import validate_config
+from server.db import tables
 from server.db.bq import BigQuery
-from server.db.tables import GA4_TABLE_NAME
-from server.db.tables import GADS_TABLE_NAME
 from server.env import CONFIG_PATH
 from server.logger import logger
 from server.rules.interval import IntervalEventsRule
-from server.rules.version_events import VersionsEventsRule
+from server.rules.version_events import VersionEventsRule
 from server.services.email import create_html_email
 from server.services.email import get_last_date_time_email_sent
 from server.services.email import send_email
 
-RULES = [IntervalEventsRule, VersionsEventsRule]
+RULES = [IntervalEventsRule, VersionEventsRule]
 
 
 def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
@@ -73,36 +74,42 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   collector_names = list(config['collectors'].keys())
   for collector_name in collector_names:
     logger.info('Running collector - %s',collector_name)
-    # try:
     collector_config = config['collectors'][collector_name]
-    collector = GA4Collector(
-        auth, collector_config,
-        bq) if collector_name == GA4_TABLE_NAME else GAdsCollector(
-            auth, collector_config, bq)
+
+    if collector_name == tables.GA4_TABLE_NAME:
+      collector = GA4Collector(auth, collector_config,bq)
+    elif collector_name == tables.GADS_TABLE_NAME:
+      collector = GAdsCollector(auth, collector_config, bq)
+    elif collector_name == tables.AppStoreTable:
+      collector = AppStoreCollector(config['apps'], bq)
+    elif collector_name == tables.PlayStoreTable:
+      collector = PlayStoreCollector(auth, config['apps'], bq)
+
     df = collector.collect()
     if not df.empty:
       df = collector.process(df)
-      overwrite = bool(collector_name == GADS_TABLE_NAME)  # Overwrite only for GAds
+      overwrite = bool(
+          collector_name == tables.GADS_TABLE_NAME)  # Overwrite only for GAds
       collector.save(df, overwrite)
 
   for rule in RULES:
-    logger.info(f'Running rule - {rule.__name__}')
+    logger.info('Running rule - %s', rule.__name__)
     rule_obj = rule(config)
     rule_obj.run()
 
   app_ids = list(config['apps'].keys())
   for app_id in app_ids:
-    logger.info(f'Running for app_id - {app_id}')
+    logger.info('Running for app_id - %s', app_id)
     last_date_time_sent = get_last_date_time_email_sent(bq, app_id)
     app_config = config['apps'][app_id]
     recipients = app_config['alerts']['emails']
     df_alerts = bq.get_alerts_for_app_since_date_time(app_id,
                                                         last_date_time_sent)
     if not df_alerts.empty:
-      logger.info(f'found alerts for {app_id}')
+      logger.info('found alerts for %s', app_id)
       body = create_html_email(df_alerts)
 
-      logger.info(f'sending emails to - {recipients}')
+      logger.info('sending emails to - %s', recipients)
       send_email(
         config=config,
         sender='',
