@@ -61,17 +61,9 @@ class TestMainFunctions:
     df = gads_df.drop(columns=['os', 'uid'])
     assert res.equals(df)
 
-  def test_process(self, collector, gads_df):
-    expected_result_os = ['ANDROID', 'ANDROID', 'ANDROID', 'IOS', 'IOS']
-    expected_result_uid = [
-        'android_102016000_first_open', 'android_102016000_purchase',
-        'android_102016000_first_level', 'ios_102016000_first_open',
-        'ios_102016000_purchase'
-    ]
-
-    res = collector.process(gads_df)
-    assert pd.Series(expected_result_os).equals(res['os'])
-    assert pd.Series(expected_result_uid).equals(res['uid'])
+  def test_process(self, collector, gads_no_os_uid, gads_df):
+    res = collector.process(gads_no_os_uid)
+    assert pd.DataFrame.equals(res, gads_df)
 
   def test_save(self):
     pass

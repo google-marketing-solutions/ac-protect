@@ -11,10 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import dataclasses
-import datetime
-from unittest.mock import MagicMock
-from unittest.mock import patch
+from unittest import mock
 
 import pandas as pd
 import pytest
@@ -24,6 +21,7 @@ import yaml
 ANDROID_TEST_APP = 'com.test.app'
 IOS_TEST_APP = '1072235449'
 PROPERTY_ID = 102016000
+TEST_COLLECTORS_CSV_PATH = 'server/tests/test_collector_csvs'
 
 @pytest.fixture(scope='session', name='config')
 def fixture_config():
@@ -35,11 +33,14 @@ def fixture_config():
 
   return conf
 
-
 @pytest.fixture(scope='session', name='auth')
 def fixture_auth(config):
   return config['auth']
 
+@pytest.fixture(scope='session', name='app_ids')
+def fixture_app_ids(config):
+  app_ids = list(config['apps'].keys())
+  return [str(x) for x in app_ids]
 
 @pytest.fixture(scope='session', name='bq_config')
 def fixture_bq_config(config):
@@ -59,10 +60,9 @@ def fixture_bq_config(config):
   }
 
 @pytest.fixture(scope='module', name='db')
-@patch('server.db.bq.Client')
+@mock.patch('server.db.bq.Client')
 def fixture_db(mock_bq_client, bq_config):
-  mock_bq_client.return_value = MagicMock()
-
+  mock_bq_client.return_value = mock.MagicMock()
   db = bq_config['db']
   db.dataset = bq_config['test_dataset']
   db.connect(bq_config['project_id'])
@@ -70,91 +70,35 @@ def fixture_db(mock_bq_client, bq_config):
 
 @pytest.fixture(scope='session', name='ga4_df')
 def fixture_ga4_df():
-  # Imported in function to allow pytest_configure to initialize before import
-  from server.db.tables import Ga4Table
+  return pd.read_csv(f'{TEST_COLLECTORS_CSV_PATH}/ga4_with_app_id.csv')
 
-  columns = [field.name for field in dataclasses.fields(Ga4Table)]
-  columns.append('app_id')
-  yesterday = (datetime.date.today() -
-               datetime.timedelta(days=1)).strftime('%Y-%m-%d')
-
-  data = [[
-      PROPERTY_ID, 'Android', '7.24.6', 'first_open', 122,
-      'android_102016000_first_open', yesterday, ANDROID_TEST_APP
-  ],
-          [
-              PROPERTY_ID, 'Android', '7.24.4', 'first_open', 47,
-              'android_102016000_first_open', '2024-01-01', ANDROID_TEST_APP
-          ],
-          [
-              PROPERTY_ID, 'Android', '7.24.4', 'purchase', 13,
-              'android_102016000_purchase', '2024-01-01', ANDROID_TEST_APP
-          ],
-          [
-              PROPERTY_ID, 'Android', '7.24.4', 'first_level', 120,
-              'android_102016000_first_level', '2024-01-01', ANDROID_TEST_APP
-          ],
-          [
-              PROPERTY_ID, 'iOS', '3.6.22', 'first_open', 58,
-              'ios_102016000_first_open', yesterday, IOS_TEST_APP
-          ],
-          [
-              PROPERTY_ID, 'iOS', '3.5.2', 'first_open', 13,
-              'ios_102016000_first_open', '2024-02-01', IOS_TEST_APP
-          ],
-          [
-              PROPERTY_ID, 'iOS', '3.5.2', 'purchase', 13,
-              'ios_102016000_purchase', '2024-02-01', IOS_TEST_APP
-          ]]
-  df = pd.DataFrame(data, columns=columns)
-  return df
-
-@pytest.fixture(scope='session', name='ga4_no_app_id_df')
-def fixture_ga4_no_app_id_df(ga4_df):
+@pytest.fixture(scope='session', name='collector_ga4')
+def fixture_collector_ga4(ga4_df):
   return ga4_df.drop(columns=['app_id'])
 
 @pytest.fixture(scope='session', name='ga4_pre_process')
-def fixture_ga4_pre_process(ga4_no_app_id_df):
-  df = ga4_no_app_id_df.drop(columns=['uid', 'date_added'])
+def fixture_ga4_pre_process(collector_ga4):
+  df = collector_ga4.drop(columns=['uid', 'date_added'])
   df['event_count'] = df['event_count'].astype(str)
   return df
 
 @pytest.fixture(scope='session', name='gads_df')
 def fixture_gads_df():
-  # Imported in function to allow pytest_configure to initialize before import
-  from server.db.tables import GadsTable
+  return pd.read_csv(f'{TEST_COLLECTORS_CSV_PATH}/gads_with_os_uid.csv')
 
-  columns = [field.name for field in dataclasses.fields(GadsTable)]
-  data = [
-      [
-          ANDROID_TEST_APP, PROPERTY_ID, 'Test App', 'first_open',
-          'FIREBASE_ANDROID_FIRST_OPEN', '2024-01-01', 'ANDROID',
-          'android_102016000_first_open'
-      ],
-      [
-          ANDROID_TEST_APP, PROPERTY_ID, 'Test App', 'purchase',
-          'FIREBASE_ANDROID_PURCHASE', '2024-01-01', 'ANDROID',
-          'android_102016000_purchase'
-      ],
-      [
-          ANDROID_TEST_APP, PROPERTY_ID, 'Test App', 'first_level',
-          'FIREBASE_ANDROID_FIRST_LEVEL', '2024-01-01', 'ANDROID',
-          'android_102016000_first_level'
-      ],
-      [
-          IOS_TEST_APP, PROPERTY_ID, 'Test App', 'first_open',
-          'FIREBASE_IOS_FIRST_OPEN', '2024-02-01', 'IOS',
-          'ios_102016000_first_open'
-      ],
-      [
-          IOS_TEST_APP, PROPERTY_ID, 'Test App', 'purchase',
-          'FIREBASE_IOS_PURCHASE', '2024-02-01', 'IOS', 'ios_102016000_purchase'
-      ],
-  ]
+@pytest.fixture(scope='session', name='gads_no_os_uid')
+def fixture_gads_no_os_uid(gads_df):
+  return gads_df.drop(columns=['os', 'uid'])
 
-  df = pd.DataFrame(data, columns=columns)
-  return df
+@pytest.fixture(scope='session', name='app_store_df')
+def fixture_app_store_df():
+  collector = pd.read_csv(f'{TEST_COLLECTORS_CSV_PATH}/app_store.csv')
+  collector['app_id'] = collector['app_id'].astype(str)
+  return collector
 
+@pytest.fixture(scope='session', name='play_store_df')
+def fixture_play_store_df():
+  return pd.read_csv(f'{TEST_COLLECTORS_CSV_PATH}/play_store.csv')
 
 @pytest.fixture(scope='session', name='customer_ids')
 def fixture_customer_ids():
@@ -194,5 +138,4 @@ def fixture_gads_campaigns():
       ],
   ]
 
-  df = pd.DataFrame(data, columns=columns)
-  return df
+  return pd.DataFrame(data, columns=columns)

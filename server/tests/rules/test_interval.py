@@ -46,12 +46,12 @@ def fixture_fake_interval_alert(fake_interval_event_1):
 class TestInit():
   ''' Test the initialization of the rule'''
 
-  def test_init(self, config):
+  def test_init(self, config, app_ids):
     interval_event = IntervalEventsRule(config)
 
     assert isinstance(interval_event, IntervalEventsRule)
     assert interval_event.name == 'IntervalEventsRule'
-    assert interval_event.app_ids == ['com.test.app', '1072235449']
+    assert interval_event.app_ids == app_ids
     assert interval_event.gads_table == GADS_TABLE_NAME
     assert interval_event.ga4_table == GA4_TABLE_NAME
     assert interval_event.interval == 24
@@ -66,10 +66,10 @@ class TestMainFunctions():
     # TODO: Mock db and return dataFrame from test data
     pass
 
-  def test_check_rule(self, interval_event, gads_df, ga4_no_app_id_df):
-    violations = interval_event.check_rule(gads_df, ga4_no_app_id_df)
+  def test_check_rule(self, interval_event, gads_df, collector_ga4):
+    violations = interval_event.check_rule(gads_df, collector_ga4)
     assert isinstance(violations, list)
-    assert len(violations) == 3
+    assert len(violations) == 15
     assert all(isinstance(v, IntervalEvent) for v in violations)
 
   def test_create_alerts(self, interval_event, fake_interval_event_1,
@@ -99,22 +99,21 @@ class TestMainFunctions():
 class TestHelperFunctions():
 
   #TODO: Make all these functions a mixin in base Rule class
-  def test_get_uids(self, interval_event, gads_df):
-    app_ids = ['com.test.app', '1072235449']
+  def test_get_uids(self, interval_event, gads_df, app_ids):
     resp = interval_event.get_uids(app_ids, gads_df)
 
     assert isinstance(resp, list)
-    assert len(resp) == 5
+    assert len(resp) == 15
 
   def test_filter_for_uids(self, interval_event, gads_df):
-    uids_list = ['android_102016000_purchase', 'ios_102016000_first_open']
+    uids_list = ['android_912210201_first_open', 'ios_881576146_large_cart']
     df = interval_event.filter_for_uids(uids_list, gads_df)
 
     assert isinstance(df, pd.DataFrame)
     assert df.shape == (2, 8)
 
-  def test_add_app_ids(self, interval_event, gads_df, ga4_no_app_id_df):
-    df = interval_event.add_app_ids(gads_df, ga4_no_app_id_df)
+  def test_add_app_ids(self, interval_event, gads_df, collector_ga4):
+    df = interval_event.add_app_ids(gads_df, collector_ga4)
     columns = df.columns.tolist()
 
     assert isinstance(df, pd.DataFrame)
