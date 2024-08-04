@@ -131,13 +131,8 @@ class TestTableFunctions:
 
   def test_get_alerts_for_app_since_date(self, db):
     yesterday = datetime.now() - timedelta(days=1)
-    df = db.get_alerts_for_app_since_date('test_app_1', yesterday)
+    df = db.get_alerts_for_app_since_date_time('test_app_1', yesterday)
     assert isinstance(df, pd.DataFrame)
     assert len(df) > 0
 
-# class TestExceptions:
 
-
-# def test_exception_table_does_not_exist(bq_config):
-#     db = bq_config["db"]
-#     with pytest.raises(GoogleAPI)

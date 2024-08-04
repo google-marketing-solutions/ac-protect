@@ -17,11 +17,13 @@
 - running relevant modules
 - sending alerts
 """
+from typing import List
 from typing import Optional
 
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import ValidationError
 
+from server.classes.collector import COLLECTOR_ALERT_ID
 from server.collectors.app_store import AppStoreCollector
 from server.collectors.ga4 import GA4Collector
 from server.collectors.gads import GAdsCollector
@@ -40,6 +42,37 @@ from server.services.email import send_email
 
 RULES = [IntervalEventsRule, VersionEventsRule]
 
+def handle_alerts(config: dict, bq: BigQuery, alert_id: str, recipients: List[str]):
+  """ Sends Alerts if needed
+
+  Args:
+    config: The app config dict.
+    bq: BigQuery client.
+    alert_id: id in alerts table
+    recipients: Who gets the alert.
+
+  Returns:
+    True if alert is sent, False otherwise.
+
+  """
+  last_date_time_sent = get_last_date_time_email_sent(bq, alert_id)
+  df_alerts = bq.get_alerts_for_app_since_date_time(alert_id,
+                                                      last_date_time_sent)
+  if not df_alerts.empty:
+    logger.info('found alerts for %s', alert_id)
+    body = create_html_email(df_alerts)
+
+    logger.info('sending emails to - %s', recipients)
+    send_email(
+      config=config,
+      sender='',
+      to=recipients,
+      subject=f'Alerts for {alert_id}',
+      message_text=body,
+      bq=bq,
+      app_id=alert_id)
+
+  return not df_alerts.empty
 
 def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   """ The main function to run the orchestrator.
@@ -98,28 +131,17 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     rule_obj.run()
 
   app_ids = list(config['apps'].keys())
+
   for app_id in app_ids:
     logger.info('Running for app_id - %s', app_id)
-    last_date_time_sent = get_last_date_time_email_sent(bq, app_id)
     app_config = config['apps'][app_id]
     recipients = app_config['alerts']['emails']
-    df_alerts = bq.get_alerts_for_app_since_date_time(app_id,
-                                                        last_date_time_sent)
-    if not df_alerts.empty:
-      logger.info('found alerts for %s', app_id)
-      body = create_html_email(df_alerts)
+    handle_alerts(config, bq, app_id, recipients)
 
-      logger.info('sending emails to - %s', recipients)
-      send_email(
-        config=config,
-        sender='',
-        to=recipients,
-        subject=f'Alerts for {app_id}',
-        message_text=body,
-        bq=bq,
-        app_id=app_id)
+  logger.info('Running for Collectors - %s', app_id)
+  handle_alerts(config, bq, COLLECTOR_ALERT_ID, recipients)
+
   return True
-
 
 
 if __name__ == '__main__':

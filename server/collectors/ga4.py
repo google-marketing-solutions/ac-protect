@@ -25,10 +25,10 @@ from google.analytics.data_v1beta.types import Filter
 from google.analytics.data_v1beta.types import FilterExpression
 from google.analytics.data_v1beta.types import Metric
 from google.analytics.data_v1beta.types import RunReportRequest
-from google.api_core.exceptions import PermissionDenied
 from google.oauth2.credentials import Credentials
 
 from server.classes.collector import Collector
+from server.classes.collector import collector_permissions_exeptions
 from server.db.bq import BigQuery
 from server.db.tables import GA4_TABLE_NAME
 from server.db.tables import Ga4Table
@@ -45,8 +45,8 @@ class GA4Collector(Collector):
 
     self.ga4_config = config
     self.creds_info = self.get_creds_info(auth)
-
     self.bq = bq
+
     self.columns = [field.name for field in fields(Ga4Table)]
 
   def collect(self) -> pd.DataFrame:
@@ -68,6 +68,7 @@ class GA4Collector(Collector):
     logger.info('GA4 Collector - Getting data from events table"')
     events = self.bq.get_values_from_table(
         GADS_TABLE_NAME, ['event_name'])['event_name'].unique().tolist()
+    connection_alerts = []
     rows = []
 
     for property_id in properties:
@@ -80,12 +81,17 @@ class GA4Collector(Collector):
           row = [col.value for col in row]
           row = [property_id, *row]
           rows.append(row)
-      except PermissionDenied as e:
-        logger.info('Error accessing property ID %s - %s', property_id,
+      except tuple(collector_permissions_exeptions) as e:
+        logger.error('Error accessing property ID %s - %s', property_id,
                     e.errors)
-        #TODO - What happens to the whole process if there is an error in
-        # this collector?
 
+        alert = self.build_connection_alert(
+          f'property_{property_id}',
+          e,
+        )
+        connection_alerts.append(alert)
+
+    self.bq.write_alerts(connection_alerts)
     df = pd.DataFrame(rows, columns=self.columns[:-2])
     return df
 

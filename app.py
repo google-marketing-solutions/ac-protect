@@ -154,7 +154,7 @@ def auth_expander(config):
         'allowed users emails',
       value=', '.join(st.session_state.config.users),
         key='users')
-      users = users.replace(" ", "")
+      users = users.replace(' ', '')
       users = users.split(',')
       valid_users = valid_emails(users)
       if not valid_users:
