@@ -26,6 +26,7 @@ from server.classes import rules
 from server.db import tables
 from server.logger import logger
 
+TIME_DELTA_DAYS = 7
 
 @dataclasses.dataclass
 class VersionEventsEvent(rules.RuleObject):
@@ -145,7 +146,7 @@ class VersionEventsRule(rules.Rule):
       return []
 
     current_date = datetime.datetime.now()
-    time_period = current_date - datetime.timedelta(days=7)
+    time_period = current_date - datetime.timedelta(days=TIME_DELTA_DAYS)
 
     stores_latest_versions = {}
 
