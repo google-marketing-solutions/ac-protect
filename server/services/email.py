@@ -13,12 +13,14 @@
 # limitations under the License.
 """ Defines an Email service."""
 import base64
+import json
 from datetime import datetime
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import List
+from email.mime import image
+from email.mime import multipart
+from email.mime import text
 from typing import Optional
 
+import jinja2
 import pandas as pd
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
@@ -30,13 +32,13 @@ from server.utils import Scopes
 
 
 def get_credentials(config: dict) -> Credentials:
-  """ Create Credentials object from config file
+  """Creates Credentials object from config file.
 
   Args:
-    config: AC Protect config in dict format
+    config: AC Protect config in dict format.
 
   Returns:
-    Credentials object in Gmail scope
+    Credentials object in Gmail scope.
   """
   creds = None
   user_info = {
@@ -48,36 +50,47 @@ def get_credentials(config: dict) -> Credentials:
                                                 [Scopes.GMAIL_SEND.value])
   return creds
 
-def create_message(sender: str, to: List, subject: str,
-                   body: str) -> MIMEMultipart:
-  """ Create a message as a MIMEMultipart object
+def create_message(sender: str, to: list[str], subject: str,
+                   body: str) -> multipart.MIMEMultipart:
+  """Creates a message as a MIMEMultipart object.
+
+  Creates the message and attaches the gTech logo to the email via Content-ID.
 
   Args:
-    sender: email of the sender
-    to: list of email to send the email to
-    subject: subject of the email message
-    body: email body
+    sender: Email address of the sender.
+    to: List of emails to send the email to.
+    subject: Subject of the email message.
+    body: The email body.
 
   Returns:
-    MIMEMultipart encoded message
+    A MIMEMultipart encoded message.
   """
 
-  msg = MIMEText(body, 'html')
+  msg = multipart.MIMEMultipart('related')
+  msg['to'] = ','.join(to)
+  msg['from'] = sender  #TODO - is this necessary? if we are sending from 'me'..
+  msg['subject'] = subject
 
-  message = MIMEMultipart()
-  message['to'] = ','.join(to)
-  message['from'] = sender  #TODO - is this necessary? if we are sending from 'me'..
-  message['subject'] = subject
-  message.attach(msg)
+  msg_alternative = multipart.MIMEMultipart('alternative')
+  msg.attach(msg_alternative)
+  msg_text = text.MIMEText(body, 'html')
+  msg_alternative.attach(msg_text)
 
-  return message
+  with open('server/services/static/gtech_logo.png', 'rb') as img_file:
+    img_data = img_file.read()
+    img = image.MIMEImage(img_data, name='gtech_logo.png')
+    img.add_header('Content-ID', '<gtech-logo>')
+    msg.attach(img)
 
-def send_message(config:dict, message:MIMEMultipart) -> Optional[dict]:
-  """ Send a message using the Gmail API
+  return msg
+
+def send_message(config:dict, message:multipart.MIMEMultipart
+                 ) -> Optional[dict]:
+  """Sends a message using the Gmail API.
 
   Args:
-    config: the AC Protect config dictionary
-    message: a MIMEMUltipart formated message
+    config: The AC Protect config dictionary.
+    message: A MIMEMultipart formated message.
 
   Returns:
     The message object that was returned from the API call or None if there
@@ -105,18 +118,21 @@ def send_message(config:dict, message:MIMEMultipart) -> Optional[dict]:
     logger.error('An error occurred when trying to send the email: %s',error)
     return None
 
-def send_email(config: dict, sender: str, to: List[str], subject: str,
-               message_text: str, bq: BigQuery, app_id: str):
-  """ Main function to send the create, send and log the email message
+def send_email(config: dict, sender: str, to: list[str], subject: str,
+               message_text: str, bq: BigQuery, app_id: str) -> None:
+  """Creates and sends the email message.
+
+  The main function in this module that creates the email message, sends it and
+  logs the action in the db.
 
   Args:
-    config: the AC Protect config dictionary
-    sender: the email of the sender
-    to: list of emails to send the email to
-    subject: the subject of the email
-    message_text: the body of the email
-    bq: a BigQuery object to update the last run
-    app_id: the app_id
+    config: The AC Protect config dictionary.
+    sender: The email address of the sender.
+    to: List of emails to send the email to.
+    subject: The subject of the email.
+    message_text: The body of the email.
+    bq: A BigQuery object to update the last run.
+    app_id: The App id.
   """
   message = create_message(sender, to, subject, message_text)
   send_message(config, message)
@@ -124,59 +140,90 @@ def send_email(config: dict, sender: str, to: List[str], subject: str,
   # TODO - move all bq updates to orchestrator
   bq.update_last_run('Email', f'service-{app_id}')
 
-
 def get_last_date_time_email_sent(bq: BigQuery,
                              app_id: str) -> Optional[datetime]:
-  """ Get the date that the last email was sent for a specific app Id
+  """Gets the date that the last email was sent for a specific app Id.
 
   Args:
-    bq: BigQuery object
-    app_id: App Id to lookup
+    bq: A BigQuery object.
+    app_id: The App Id to lookup.
 
   Results:
     Date the last email was sent.
   """
   return bq.get_last_run('Email', f'service-{app_id}')
 
+def create_html_from_template(alerts_data: pd.DataFrame) -> str:
+  """Creates an html file from a template.
 
-def create_alerts_email_body(df: pd.DataFrame) -> str:
-  """ Create the body for the email
-
-  Args:
-    df: DataFrame with the Alert data.
-
-  Returns:
-    String of the email body
-  """
-  app_id = df.iloc[0][0]
-  df = df[['trigger', 'trigger_value', 'timestamp']]
-  table = df.to_csv(index=False)
-
-  return f'''
-    The following alerts have been triggered in app {app_id}:
-
-    {table}
-  '''
-
-def create_html_email(df: pd.DataFrame) -> str:
-  """ Create the body for the email in html format.
+  Creates the html that will be sent by email, using a jinja2 template.
 
   Args:
-    df: DataFrame with the Alert data.
+    alerts_data: Dataframe holding alerts data to be sent by email.
 
   Returns:
-    String of the email body
+    A string representing the html to be sent.
   """
-  app_id = df.iloc[0][0]
-  df = df[['trigger', 'trigger_value', 'timestamp']]
-  table = df.to_html(index=False)
+  env = jinja2.Environment(loader=jinja2.FileSystemLoader(
+    searchpath='server/services/'))
+  template = env.get_template('static/email_template.jinja')
+  context = create_context(alerts_data)
+  return template.render(context)
 
-  html = f'''
-    <html>
-      <body>
-        <h1>The following alerts have been triggered in app {app_id}:</h1>
-        {table}
-      </body>
-    </html>
-  '''
-  return html
+def create_context(alerts_data: pd.DataFrame) -> dict:
+  """Creates a dictionary for each alert.
+
+  Creates a dictionary that can be parsed by the email template.
+
+  Args:
+    alerts_data: The contents of the alert to be sent for each alert type.
+
+  Returns:
+    A dictionary in the following format:
+    {
+      app_id: str
+      alerts_by_type:[
+        {
+          alert_name: str,
+          alerts: list[dict[str,str]]
+          timestamp: str
+        }
+      ]
+    }
+  """
+  alert_types = alerts_data['trigger'].unique()
+  alerts_data['trigger_value_parsed'] = alerts_data['trigger_value'].apply(
+      parse_trigger_value)
+
+  context = {}
+  context['app_id'] = alerts_data.iloc[0][0]
+  context['alerts_by_type'] = []
+
+  for alert_type in alert_types:
+    alerts = alerts_data['trigger_value_parsed'][
+      alerts_data['trigger'] == alert_type]
+    context['alerts_by_type'].append({
+        'alert_name': alert_type,
+        'alerts': alerts.tolist(),
+        'timestamp': alerts_data.iloc[0]['timestamp']
+    })
+
+  return context
+
+def parse_trigger_value(trigger_value: str) -> dict:
+  """Converts trigger values to dict format.
+
+  The trigger_value columns usually holds key:value pairs in string format.
+  The function converts them to a python dictionary. If there isn't a key:value
+  pair, the function uses trigger_value just as the value in a new dict.
+
+  Args:
+    trigger_value: Values of the alert to be parsed.
+
+  Returns:
+    The contents of 'trigger_value' in key:value pairs.
+  """
+  try:
+    return json.loads(trigger_value)
+  except json.JSONDecodeError:
+    return {'Details': trigger_value}

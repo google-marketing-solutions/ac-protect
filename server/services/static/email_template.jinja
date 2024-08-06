@@ -1,0 +1,54 @@
+<html>
+  <body>
+    <div style="background-color:#f8f9fa;color:#3c4043;font:13px Roboto,Arial,sans-serif;font-weight:400;line-height:20px;letter-spacing:.2px;max-width:1280px;margin:0 auto;padding:0 24px 24px 24px">
+      <div style="max-width:800px;margin:auto">
+        <header style="padding-top:16px;padding-bottom:8px;font:12px Roboto,Arial,sans-serif">
+          <img src="cid:gtech-logo" style="height:40px;max-height:40px;min-width:100px;vertical-align:middle;" alt="gTech">
+        </header>
+        <div style="display:flex; background-color:#e8f0fe;border-top:1px solid #dadce0;border-left:1px solid #dadce0;border-right:1px solid #dadce0;padding: 12px 24px">
+          <svg style=" max-width: 25px;"
+               xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512">
+            <path d="M224 0c-17.7 0-32 14.3-32 32l0 19.2C119 66 64 130.6 64 208l0 25.4c0 45.4-15.5 89.5-43.8 124.9L5.3 377c-5.8 7.2-6.9 17.1-2.9 25.4S14.8 416 24 416l400 0c9.2 0 17.6-5.3 21.6-13.6s2.9-18.2-2.9-25.4l-14.9-18.6C399.5 322.9 384 278.8 384 233.4l0-25.4c0-77.4-55-142-128-156.8L256 32c0-17.7-14.3-32-32-32zm0 96c61.9 0 112 50.1 112 112l0 25.4c0 47.9 13.9 94.6 39.7 134.6L72.3 368C98.1 328 112 281.3 112 233.4l0-25.4c0-61.9 50.1-112 112-112zm64 352l-64 0-64 0c0 17 6.7 33.3 18.7 45.3s28.3 18.7 45.3 18.7s33.3-6.7 45.3-18.7s18.7-28.3 18.7-45.3z"/>
+          </svg>
+          <div style="padding-left:12px; font-size: 16px;">
+            <b>AC Protect - Alerts for AppId: {{ app_id }}</b>
+          </div>
+        </div>
+        <div style="border-left:1px solid #dadce0;border-right:1px solid #dadce0;padding:24px;background-color:#fff">
+          <table style="width:100%">
+            <tbody>
+              {% for alert_type in alerts_by_type %}
+                <tr id="alert-title-row">
+                  <td style="display:flex">
+                    <div style="font-size:16px;font-weight:500;font-family:'Google Sans',Roboto,Arial,sans-serif;color:#202124;line-height:20px;margin-top:15px;margin-bottom:auto">
+                      {{ alert_type['alert_name'] }}
+                    </div>
+                  </td>
+                </tr>
+                {% for alert in alert_type['alerts'] %}
+                  <tr id="alert-content-row" style="font-size:13px;font-family:Roboto,Arial,sans-serif;color:#3c4043;line-height:20px">
+                    <td style="padding-top:12px">
+                      {% for key, value in alert.items() %}
+                        <div>
+                          <span style="font-weight:500">{{ key }}: </span>{{ value }}
+                        </div>
+                      {% endfor %}
+                      <div>
+                        <span style="font-weight:500">Timestamp: </span> {{ alert_type['timestamp'] }}
+                      </div>
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <footer>
+          <div style="font-size:12px;font-family:Roboto,Arial,sans-serif;color:#5f6368;line-height:18px;border-top:1px solid #dadce0">
+          {# Room for Disclaimer #}
+          </div>
+        </footer>
+      </div>
+    </div>
+  </body>
+</html>

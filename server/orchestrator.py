@@ -17,7 +17,6 @@
 - running relevant modules
 - sending alerts
 """
-from typing import List
 from typing import Optional
 
 from google.auth.exceptions import DefaultCredentialsError
@@ -36,41 +35,40 @@ from server.env import CONFIG_PATH
 from server.logger import logger
 from server.rules.interval import IntervalEventsRule
 from server.rules.version_events import VersionEventsRule
-from server.services.email import create_html_email
-from server.services.email import get_last_date_time_email_sent
-from server.services.email import send_email
+from server.services import email
 
 RULES = [IntervalEventsRule, VersionEventsRule]
 
-def handle_alerts(config: dict, bq: BigQuery, alert_id: str, recipients: List[str]):
-  """ Sends Alerts if needed
+def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
+                  recipients: list[str]):
+  """Sends Alerts if needed.
 
   Args:
     config: The app config dict.
     bq: BigQuery client.
-    alert_id: id in alerts table
+    alert_id: Id in alerts table
     recipients: Who gets the alert.
 
   Returns:
     True if alert is sent, False otherwise.
 
   """
-  last_date_time_sent = get_last_date_time_email_sent(bq, alert_id)
+  last_date_time_sent = email.get_last_date_time_email_sent(bq, alert_id)
   df_alerts = bq.get_alerts_for_app_since_date_time(alert_id,
                                                       last_date_time_sent)
   if not df_alerts.empty:
     logger.info('found alerts for %s', alert_id)
-    body = create_html_email(df_alerts)
+    body = email.create_html_email(df_alerts)
 
     logger.info('sending emails to - %s', recipients)
-    send_email(
-      config=config,
-      sender='',
-      to=recipients,
-      subject=f'Alerts for {alert_id}',
-      message_text=body,
-      bq=bq,
-      app_id=alert_id)
+    email.send_email(
+        config=config,
+        sender='',
+        to=recipients,
+        subject=f'[AC Protect] Alerts for AppId: {alert_id}',
+        message_text=body,
+        bq=bq,
+        app_id=alert_id)
 
   return not df_alerts.empty
 
@@ -105,6 +103,8 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     return False
 
   collector_names = list(config['collectors'].keys())
+  overwrite = False
+
   for collector_name in collector_names:
     logger.info('Running collector - %s',collector_name)
     collector_config = config['collectors'][collector_name]
@@ -113,6 +113,7 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
       collector = GA4Collector(auth, collector_config,bq)
     elif collector_name == tables.GADS_TABLE_NAME:
       collector = GAdsCollector(auth, collector_config, bq)
+      overwrite = True
     elif collector_name == tables.AppStoreTable:
       collector = AppStoreCollector(config['apps'], bq)
     elif collector_name == tables.PlayStoreTable:
@@ -121,8 +122,6 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     df = collector.collect()
     if not df.empty:
       df = collector.process(df)
-      overwrite = bool(
-          collector_name == tables.GADS_TABLE_NAME)  # Overwrite only for GAds
       collector.save(df, overwrite)
 
   for rule in RULES:
@@ -138,7 +137,7 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     recipients = app_config['alerts']['emails']
     handle_alerts(config, bq, app_id, recipients)
 
-  logger.info('Running for Collectors - %s', app_id)
+  logger.info('Running for Collectors - %s', COLLECTOR_ALERT_ID)
   handle_alerts(config, bq, COLLECTOR_ALERT_ID, recipients)
 
   return True
