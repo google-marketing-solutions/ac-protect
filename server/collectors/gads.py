@@ -20,6 +20,7 @@ from gaarf.api_clients import GoogleAdsApiClient
 from gaarf.query_executor import AdsReportFetcher
 
 from server.classes.collector import Collector
+from server.classes.collector import collector_permissions_exeptions
 from server.db.bq import BigQuery
 from server.db.tables import GADS_TABLE_NAME
 from server.logger import logger
@@ -31,7 +32,6 @@ class GAdsCollector(Collector):
   def __init__(self, auth: Dict, collector_config: Dict, bq: BigQuery):
     super().__init__('GAds-collector', 'collector')
     self.bq = bq
-
     self.customer_id = str(auth['login_customer_id'])
     self.version = collector_config['version']
     self.google_ads_yaml = self.create_google_ads_yaml(auth)
@@ -43,8 +43,20 @@ class GAdsCollector(Collector):
       Pandas DataFrame of collected data.
     '''
     # Init report fetcher and customer_ids
-    report_fetcher = self.create_report_fetcher()
-    customer_ids = report_fetcher.expand_mcc(self.customer_id)
+
+    try:
+      report_fetcher = self.create_report_fetcher()
+      customer_ids = report_fetcher.expand_mcc(self.customer_id)
+    except Exception as e:
+      logger.error('Error accessing Google Ads customer id %s - %s', self.customer_id,
+                    e)
+      alert = self.build_connection_alert(
+        self.name,
+        e
+      )
+      self.bq.write_alerts([alert])
+      return pd.DataFrame([])
+
 
     # Get relevant Conversion Actions Ids from Campaigns
     campaigns_query = self.create_campaigns_query()
@@ -54,16 +66,28 @@ class GAdsCollector(Collector):
       campaigns)
 
     # Get Conversion Actions
+    connection_alerts = []
     conversion_actions = []
     conversion_actions_queries = self.create_conversion_actions_queries(
         customer_ids, conversion_action_resource_names)
 
     for customer_id, query in conversion_actions_queries.items():
-      logger.info(f'getting conversion actions for customer id - {customer_id}')
-      resp = report_fetcher.fetch(query, [customer_id])
-      conversion_actions.append(resp.to_pandas())
-    conversion_actions = pd.concat(conversion_actions)
+      try:
+        logger.info(f'getting conversion actions for customer id - {customer_id}')
+        resp = report_fetcher.fetch(query, [customer_id])
+        conversion_actions.append(resp.to_pandas())
+      except tuple(collector_permissions_exeptions) as e:
+        logger.error('Error accessing customer_id %s - %s', customer_id,
+                    e.errors)
 
+        alert = self.build_connection_alert(
+          self.name,
+          f'customer_{customer_id}',
+          e,
+        )
+        connection_alerts.append(alert)
+    conversion_actions = pd.concat(conversion_actions)
+    self.bq.write_alerts(connection_alerts)
     return conversion_actions
 
   def process(self, df: pd.DataFrame) -> pd.DataFrame:

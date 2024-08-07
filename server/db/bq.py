@@ -200,7 +200,7 @@ class BigQuery(BaseDb):
 
     if not date_time:
       logger.info('No date was given using default')
-      date_time = datetime.datetime.now() - timedelta(days=2)
+      date_time = datetime.datetime.now() - timedelta(days=1)
 
     filter_ = f'app_id="{app_id}"'
 
