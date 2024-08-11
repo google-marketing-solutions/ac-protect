@@ -18,9 +18,9 @@ from unittest.mock import patch
 
 import pandas as pd
 import pytest
+from google.api_core import exceptions
 
 from server.collectors.ga4 import GA4Collector
-from server.collectors.ga4 import PermissionDenied
 from server.collectors.ga4 import RunReportRequest
 from server.utils import Scopes
 
@@ -91,7 +91,8 @@ class TestGa4CollecterFunction:
         mock_query_job_properties, mock_query_job_event_name
     ]
 
-    mock_run_report.side_effect = PermissionDenied('Error with property_id')
+    mock_run_report.side_effect = exceptions.PermissionDenied(
+        'Error with property_id')
     collector.collect()
 
     mock_logger.info.assert_called()
