@@ -26,8 +26,6 @@ from server.classes import rules
 from server.db import tables
 from server.logger import logger
 
-TIME_DELTA_DAYS = 7
-
 @dataclasses.dataclass
 class VersionEventsEvent(rules.RuleObject):
   """Dataclass for VersionEvent rule violation.
@@ -70,7 +68,7 @@ class VersionEventsRule(rules.Rule):
     self.app_ids = [str(app_id) for app_id in apps_config.keys()]
 
   def run(self):
-    """Runs the rule logic and updates relevant tables"""
+    """Runs the rule logic and updates relevant tables."""
     collectors_data = self.get_data()
     rule_violations = self.check_rule(collectors_data)
     triggered_alerts = self.create_alerts(rule_violations)
@@ -107,19 +105,21 @@ class VersionEventsRule(rules.Rule):
                  ) -> List[VersionEventsEvent]:
     """Tests if the current version is missing events from previous version.
 
-    Find any conversion action that exist in the previous app version, but does
+    Find any conversion action that exists in the previous app version, but does
     not exist in the current version.
 
     The logic of how this is done depends on which tables are available:
       - If GA4 or Google Ads data are missing - log an error (alert) and do not
       check the rule.
+      - If App / Play Store data is available -
+
+
       - If App Store data is available - if 'version' in App Store is larger
-      than 'version' in GA4 and time between versions is larger than the
-      preconfigured amount set, create new alert (if one has not been created).
+      than 'version' in GA4 and time between versions is larger than 24 hours,
+      create new alert.
       - If Google Play Store data is available - if new 'version_code' detected
-      in Production and time of latest 'version' in GA4 is larger than the
-      preconfigured amount set, create new alert (if one has not been
-      created). (**)
+      in Production and time of latest 'version' in GA4 is larger than 24 hours,
+      create new alert. (**)
       - If no new version is detected in App or Google Play Stores, check if
       there are conversion events that were seen in the previous version, but
       are missing from this one.
@@ -145,21 +145,10 @@ class VersionEventsRule(rules.Rule):
       logger.error('VersionEventsRule - Missing data from Google Ads Collector')
       return []
 
-    current_date = datetime.datetime.now()
-    time_period = current_date - datetime.timedelta(days=TIME_DELTA_DAYS)
-
-    stores_latest_versions = {}
-
-    # Get the latest versions of apps from the App Store and Google Play Store
-    if isinstance(collectors_data.get('app_store'), pd.DataFrame):
-      app_store_data = collectors_data['app_store'].copy()
-      stores_latest_versions['app_store'] = self.get_latest_versions_of_apps(
-          app_store_data, time_period)
-
-    if isinstance(collectors_data.get('play_store'), pd.DataFrame):
-      play_store_data = collectors_data['play_store'].copy()
-      stores_latest_versions['play_store'] = self.get_latest_versions_of_apps(
-          play_store_data, time_period)
+    stores = {
+        'app_store': collectors_data.get('app_store'),
+        'play_store': collectors_data.get('play_store')
+    }
 
     # Check apps for rule violations
     rule_violations = []
@@ -167,7 +156,7 @@ class VersionEventsRule(rules.Rule):
     app_ids_list = conversion_events['app_id'].unique().tolist()
     for app_id in app_ids_list:
       missing_events = self.get_app_missing_events(app_id, conversion_events,
-                                                   stores_latest_versions)
+                                                   stores)
       if missing_events:
         rule_violations.extend(missing_events)
 
@@ -296,8 +285,9 @@ class VersionEventsRule(rules.Rule):
         semantic_version.Version(v) for v in versions if self.is_version(v)]
     return str(spec.select(valid_versions))
 
-  def compare_events_between_versions(self, cur_ver: str, prev_ver: str,
-                       df: pd.DataFrame) -> List[VersionEventsEvent]:
+  def compare_events_between_versions(self, app_id:str, cur_ver: str,
+                                      prev_ver: str,df: pd.DataFrame
+                                      ) -> List[VersionEventsEvent]:
     """Compares two lists of events from two different versions.
 
     Extracts data for both versions and compares if there are events in the
@@ -313,8 +303,6 @@ class VersionEventsRule(rules.Rule):
     """
     cur_ver_events = self.get_events_for_version(cur_ver, df)
     prev_ver_events = self.get_events_for_version(prev_ver, df)
-
-    app_id = df['app_id'].unique().tolist()[0]
 
     missing_events = list(set(prev_ver_events).difference(set(cur_ver_events)))
 
@@ -340,25 +328,6 @@ class VersionEventsRule(rules.Rule):
     #TODO - What happens when there are similar version number in different os's?
     return df.loc[df['app_version'] == version]['event_name'].unique().tolist()
 
-  def get_latest_versions_of_apps(self, apps_data: pd.DataFrame,
-                                  time_period: datetime.date
-                                  ) -> pd.DataFrame:
-    """Gets only the latest versions of all apps in a DataFrame.
-
-    Filters the most up-to-date versions of all the apps in the DataFrame in
-    a given time period (i.e. last 7 days).
-
-    Args:
-      apps_data: App data from the App/Play Store.
-      time_period: The lookback window.
-
-    Returns:
-      DataFrame with one row for every app with the highest version number.
-    """
-    apps_data['timestamp'] = pd.to_datetime(apps_data['timestamp'])
-    apps_recent = apps_data[apps_data['timestamp'] >= time_period]
-    return apps_recent.loc[apps_recent.groupby('app_id')['timestamp'].idxmax()]
-
   def get_conversion_events(self, collectors_data: dict[str, pd.DataFrame]
                             ) -> pd.DataFrame:
     """Adds AppIds from GAds to GA4 data.
@@ -379,117 +348,130 @@ class VersionEventsRule(rules.Rule):
                                                 collectors_data['ga4'])
     return self.add_app_ids(collectors_data['gads'], ga4_conversion_events)
 
-  def get_missing_events_app_store(self, store: pd.DataFrame, app_id: str,
-                                     cur_ver: str) -> List[VersionEventsEvent]:
-    """Finds if there are version mismatches between GA4 and App Store.
-
-    If 'version' in App Store is larger than 'version' in GA4 and time between
-    versions is larger than the preconfigured amount set, this means that there
-    is a version mismatch between App Store and GA4 - return a "first_open"
-    event violation.
-
-    Args:
-      store: App Store collector DataFrame.
-      app_id: The app id.
-      cur_ver: The current version of the app according to GA4.
-
-    Returns:
-      A List with a single "first_open" VersionEventEvent object.
-    """
-    store_cur_ver = store[store['app_id'] == app_id].reset_index()
-    store_ver_num = store_cur_ver.loc[0, 'version']
-
-    if semantic_version.Version(store_ver_num
-                              ) > semantic_version.Version(cur_ver):
-      return [
-        VersionEventsEvent('first_open', app_id, store_ver_num, cur_ver)]
-    return []
-
-  def get_missing_events_play_store(self, store: pd.DataFrame, app_id: str,
-                                     cur_ver: str,
-                                     app_conversion_events: pd.DataFrame
-                                     ) -> List[VersionEventsEvent]:
-    """Finds if there are version mismatches between GA4 and Google Play Store.
-
-    Google Play Store API does not show the actual version, but instead it shows
-    a version code. In order to find version mismatches, we can not compare
-    version number directly, but look at a proxy - if the current version in
-    Play Store is later than the first instance of the current version in GA4,
-    and more than the allowed time has passed - return a "first_open" event
-    violation.
-    Since we are using time as the metric, we add a 24 hour buffer to make sure
-    that we have enough time between app release and users actually using it.
-
-    Args:
-      store: Google Play Store collector DataFrame.
-      app_id: The app id.
-      cur_ver: The current version of the app according to GA4.
-      app_conversion_events: conversion events for a specific app.
-
-    Returns:
-      A List with a single "first_open" VersionEventEvent object.
-    """
-    store_cur_ver = store[store['app_id'] == app_id].reset_index()
-    store_ver_time = store_cur_ver.loc[0, 'timestamp']
-    store_ver_code = store_cur_ver.loc[0, 'version']
-    cur_ver_data = app_conversion_events[
-      app_conversion_events['app_version'] == cur_ver]
-    cur_ver_earliest_time = pd.to_datetime(cur_ver_data['date_added']).min()
-
-    if (store_ver_time - datetime.timedelta(hours=24)) > cur_ver_earliest_time:
-      return [VersionEventsEvent('first_open', app_id,
-                                               store_ver_code, cur_ver)]
-    return []
-
-  def get_missing_events_ga4(
-      self, versions: List[str], cur_ver: str,
-      app_conversion_events: pd.DataFrame) -> List[VersionEventsEvent]:
-    """Finds if there are events missing in current app version.
-
-    Compares GA4 data for current and previous versions of the app and looks
-    for conversion events that are missing in the current version.
-
-    Args:
-      versions: List of app versions.
-      cur_ver: String of current app version (presumes semantic versioning).
-      app_conversion_events: conversion events for a specific app.
-    """
-    prev_ver = self.find_previous_version(cur_ver, versions)
-    return self.compare_events_between_versions(cur_ver, prev_ver,
-                                                app_conversion_events)
-
   def get_app_missing_events(
-      self, app_id: str, conversion_events: pd.DataFrame,
-      stores_latest_versions: dict[str, pd.DataFrame]
-      ) -> List[VersionEventsEvent]:
-    """Checks for missing events in a new app version.
+      self, app_id: str, events: pd.DataFrame,
+      stores: dict[str,pd.DataFrame]) -> List[VersionEventsEvent]:
+    """Checks for missing events in an app by store or GA4 data.
+
+    Checks if store data is available and sends relevant app sepcific data to
+    check for missing events. If store data is unavailable, falls back to look
+    only at GA4 event data.
 
     Args:
-      app_id: The app id.
-      conversion_events: GA4 data for events that are classified as conversion
-        events in Google Ads. Holds data for all apps that we are following.
-      stores_latest_versions: Latest versions of all apps from App Store and
-        Google Play Store.
+      app_id: The id of the specific app we are testing.
+      events: Conversion events data from GA4.
+      stores: App and Play Store versions data.
 
     Returns:
-      List of missing events from the current version of the app.
+      A list of of version event violations.
     """
-    app_conversion_events = conversion_events.loc[
-      conversion_events['app_id'] == app_id]
-    versions = self.get_versions(app_conversion_events)
+
+    app_events = events.loc[events['app_id'] == app_id]
+    versions = self.get_versions(app_events)
     cur_ver = self.find_latest_version(versions)
-    os = app_conversion_events.iloc[0]['os'].lower()
+    prev_ver = self.find_previous_version(cur_ver, versions)
+    os = app_events.iloc[0]['os'].lower()
 
     store_type = 'app_store' if os == 'ios' else 'play_store'
-    store = stores_latest_versions.get(store_type)
+    store = stores.get(store_type)
 
-    if store_type == 'app_store' and isinstance(
-      store, pd.DataFrame) and not store.empty:
-      return self.get_missing_events_app_store(store, app_id, cur_ver)
+    if isinstance(store, pd.DataFrame) and not store.empty:
+      store = store[store['app_id'] == app_id].reset_index(drop=True)
+      return self.check_missing_events_for_app(app_id, store, app_events,
+                                               cur_ver, prev_ver, store_type)
 
-    if store_type == 'play_store' and isinstance(
-      store, pd.DataFrame) and not store.empty:
-      return self.get_missing_events_play_store(store, app_id, cur_ver,
-                                                app_conversion_events)
+    return self.compare_events_between_versions(app_id, cur_ver, prev_ver,
+                                                events)
 
-    return self.get_missing_events_ga4(versions, cur_ver, app_conversion_events)
+  def check_missing_events_for_app(self, app_id: str, store: pd.DataFrame,
+                                   events, cur_ver, prev_ver, store_type
+                                   ) -> List[VersionEventsEvent]:
+    """Checks if there are any missing events between versions for an app.
+
+    Args:
+      app_id: The id of the specific app we are testing.
+      store: App and Play Store versions data.
+      events_data: Conversion events data from GA4.
+
+    Returns:
+      A list of of version event violations.
+    """
+
+    sorted_store = store.sort_values('timestamp', ascending=False)
+    if store_ver := self.has_new_version_been_released(store_type, sorted_store,
+                                                       events, cur_ver):
+      ver_store = store[store['version'] == store_ver]
+      ver_events = events[events['app_version'] == cur_ver]
+      if self.is_gap_larger_than_24_hours(ver_store, ver_events):
+        # Potential issue with all store events, send first_open event Alert
+        return [VersionEventsEvent('first_open', app_id, store_ver, cur_ver)]
+      else:
+        return self.compare_events_between_versions(app_id, cur_ver, prev_ver,
+                                                    events)
+    return []
+
+  def has_new_version_been_released(self, store_type: str, store: pd.DataFrame,
+                                    events: pd.DataFrame,
+                                    events_cur_ver: str) -> str | None:
+    """Checks if a new app version has been released in the Store.
+
+    Compares app versions depending on the store type:
+    - If the app is from App Store, checks if the version in App Store is larger
+      than the highest version for the app in GA4 events.
+    - If the app is from Play Store, checks which is later - the time that we
+      saw a version change in Play Store or in GA4 events. (**)
+
+      ** Note: Google Play Store API does not show the actual version, but a
+      numeric version code. That is why we are not comparing them directly
+
+    Args:
+      store_type: Store type is app_store or play_store.
+      store: App or Play Store versions data.
+      events: Conversion events data from GA4.
+      events_cur_ver: The latest version of the app as seen in GA4
+
+    Returns:
+      If the version in store is newer, returns the version number. Else returns
+      None.
+    """
+    store_ver = store.head(1)['version'][0]
+    if store_type == 'app_store':
+      if semantic_version.Version(store_ver) > semantic_version.Version(
+          events_cur_ver):
+        return store_ver
+
+    if store_type == 'play_store':
+      store_first = store[store['version'] == store_ver].tail(1).reset_index(
+        drop=True)
+      event_first = events[events['app_version'] == events_cur_ver].tail(
+          1).reset_index(drop=True)
+
+      store_timestamp = pd.to_datetime(store_first['timestamp'][0])
+      event_timestamp = pd.to_datetime(event_first['date_added'][0])
+
+      if store_timestamp > event_timestamp:
+        return store_ver
+
+    return None
+
+  def is_gap_larger_than_24_hours(self, store: pd.DataFrame,
+                                  events: pd.DataFrame) -> bool:
+    """Checks if difference between versions is over 24 hours.
+
+    Determines whether the time gap between the most recent store version update
+    and the earliest event version update is greater than 24 hours.
+
+    Args:
+      store: App or Play Store versions data.
+      events: Conversion events data from GA4.
+    Returns:
+      True if gap is larger than 24 hours, False otherwise.
+    """
+    store_last = store.head(1)
+    events_first = events.tail(1).reset_index()
+
+    buffer = datetime.timedelta(hours=24)
+    store_timestamp = pd.to_datetime(store_last['timestamp'][0])
+    event_timestamp = pd.to_datetime(events_first['date_added'][0])
+
+    return store_timestamp > event_timestamp + buffer

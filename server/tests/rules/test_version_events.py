@@ -11,7 +11,6 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import datetime
 from unittest import mock
 
 import pandas as pd
@@ -73,21 +72,6 @@ def fixture_fake_version_alert(fake_version_event_1):
 def fixture_versions():
   return ['1.1.2', '1.0.1', '0.1.0', '2.0.0', '2.2.2']
 
-@pytest.fixture(scope='class', name='time_delta')
-def fixture_time_delta():
-  """ Get a time delta in int format to use in mocks
-
-  Some functions look at data from the last 7 days. Since our csvs have a
-  static date, we need to make sure that they stay in the relevant time
-  window. Currently, all data is up to 25/07/2024 - that is why we use this
-  date as an anchor.
-  """
-  anchor_date = datetime.datetime.strptime('2024-07-25 00:00:00',
-                                          '%Y-%m-%d %H:%M:%S')
-  now = datetime.datetime.now()
-  delta = now - anchor_date
-  return delta.days
-
 
 class TestVersionEventsRule():
 
@@ -135,85 +119,74 @@ class TestVersionEventsRule():
     mock_logger.error.assert_called()
 
   def test_check_rule_only_app_store_data(self, version_events_obj,
-                                          time_delta,
                                           fake_collector_data):
-    with mock.patch('server.rules.version_events.TIME_DELTA_DAYS',
-      new=time_delta):
-      collectors = fake_collector_data.copy()
-      del collectors['play_store']
 
-      violations = version_events_obj.check_rule(collectors)
-      store_violations = [
-          violation for violation in violations
-          if violation.event_name == 'first_open'
-      ]
+    collectors = fake_collector_data.copy()
+    del collectors['play_store']
 
-      assert len(violations) == 4
-      assert len(store_violations) == 2
-      assert all(
-          isinstance(item, version_events.VersionEventsEvent)
-          for item in violations)
-      assert all(event.app_id.isnumeric() for event in store_violations)
+    violations = version_events_obj.check_rule(collectors)
+    store_violations = [
+        violation for violation in violations
+        if violation.event_name == 'first_open'
+    ]
+
+    assert len(violations) == 4
+    assert len(store_violations) == 2
+    assert all(
+        isinstance(item, version_events.VersionEventsEvent)
+        for item in violations)
+    assert all(event.app_id.isnumeric() for event in store_violations)
 
   def test_check_rule_only_play_data_less_than_24_hours(self,
-                                                         time_delta,
                                                          version_events_obj,
                                                          fake_collector_data):
-    with mock.patch('server.rules.version_events.TIME_DELTA_DAYS',
-      new=time_delta):
-      collectors = fake_collector_data.copy()
-      del collectors['app_store']
 
-      violations = version_events_obj.check_rule(collectors)
-      store_violations = list(
-          filter(lambda x: x.event_name == 'first_open', violations))
+    collectors = fake_collector_data.copy()
+    del collectors['app_store']
 
-      assert len(violations) == 2
-      assert len(store_violations) == 0
-      assert all(
-          isinstance(item, version_events.VersionEventsEvent)
-          for item in violations)
-      assert all((not event.app_id.isnumeric()) for event in store_violations)
+    violations = version_events_obj.check_rule(collectors)
+    store_violations = list(
+        filter(lambda x: x.event_name == 'first_open', violations))
+
+    assert len(violations) == 4
+    assert len(store_violations) == 0
+    assert all(
+        isinstance(item, version_events.VersionEventsEvent)
+        for item in violations)
 
   def test_check_rule_only_play_data__more_than_24_hours(self,
-                                                         time_delta,
                                                          version_events_obj,
                                                          fake_collector_data):
-    with mock.patch('server.rules.version_events.TIME_DELTA_DAYS',
-      new=time_delta):
-      collectors = fake_collector_data.copy()
-      del collectors['app_store']
-      collectors['play_store'].loc[0, 'timestamp'] = '2024-07-29T00:00:00.00000'
+    collectors = fake_collector_data.copy()
+    del collectors['app_store']
+    collectors['play_store'].loc[0, 'timestamp'] = '2024-07-29T00:00:00.00000'
 
-      violations = version_events_obj.check_rule(collectors)
-      store_violations = list(
-          filter(lambda x: x.event_name == 'first_open', violations))
+    violations = version_events_obj.check_rule(collectors)
+    store_violations = list(
+        filter(lambda x: x.event_name == 'first_open', violations))
 
-      assert len(violations) == 3
-      assert len(store_violations) == 1
-      assert all(
-          isinstance(item, version_events.VersionEventsEvent)
-          for item in violations)
-      assert all((not event.app_id.isnumeric()) for event in store_violations)
+    assert len(violations) == 4
+    assert len(store_violations) == 1
+    assert all(
+        isinstance(item, version_events.VersionEventsEvent)
+        for item in violations)
 
-  def test_check_rule_no_app_store_and_play_data(self, time_delta,
+  def test_check_rule_no_app_store_and_play_data(self,
                                                  version_events_obj,
                                                  fake_collector_data):
-    with mock.patch('server.rules.version_events.TIME_DELTA_DAYS',
-      new=time_delta):
-      collectors = fake_collector_data.copy()
-      del collectors['app_store']
-      del collectors['play_store']
+    collectors = fake_collector_data.copy()
+    del collectors['app_store']
+    del collectors['play_store']
 
-      violations = version_events_obj.check_rule(collectors)
-      store_violations = list(
-          filter(lambda x: x.event_name == 'first_open', violations))
+    violations = version_events_obj.check_rule(collectors)
+    store_violations = list(
+        filter(lambda x: x.event_name == 'first_open', violations))
 
-      assert len(violations) == 4
-      assert len(store_violations) == 0
-      assert all(
-          isinstance(item, version_events.VersionEventsEvent)
-          for item in violations)
+    assert len(violations) == 4
+    assert len(store_violations) == 0
+    assert all(
+        isinstance(item, version_events.VersionEventsEvent)
+        for item in violations)
 
   def test_create_alerts(self, version_events_obj, fake_version_event_1,
                          fake_version_event_2, fake_version_alert):
@@ -278,7 +251,7 @@ class TestVersionEventsRule():
   def test_compare_events_between_versions(self, version_events_obj, ga4_df):
     cur_ver, prev_ver = '1.1.1', '1.1.0'
     missing_events = version_events_obj.compare_events_between_versions(
-        cur_ver, prev_ver, ga4_df)
+        'test-app-id', cur_ver, prev_ver, ga4_df)
     assert len(missing_events) == 1
 
   def test_get_uids__success(self, app_ids, version_events_obj, gads_df):
