@@ -19,6 +19,7 @@
 """
 from typing import Optional
 
+import pandas as pd
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import ValidationError
 
@@ -40,7 +41,7 @@ from server.services import email
 RULES = [IntervalEventsRule, VersionEventsRule]
 
 def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
-                  recipients: list[str]):
+                  recipients: list[str]) -> None:
   """Sends Alerts if needed.
 
   Args:
@@ -56,7 +57,7 @@ def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
   last_date_time_sent = email.get_last_date_time_email_sent(bq, alert_id)
   df_alerts = bq.get_alerts_for_app_since_date_time(alert_id,
                                                       last_date_time_sent)
-  if not df_alerts.empty:
+  if isinstance(df_alerts, pd.DataFrame) and not df_alerts.empty:
     logger.info('found alerts for %s', alert_id)
     body = email.create_html_email(df_alerts)
 
@@ -69,8 +70,6 @@ def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
         message_text=body,
         bq=bq,
         app_id=alert_id)
-
-  return not df_alerts.empty
 
 def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   """ The main function to run the orchestrator.
@@ -114,9 +113,9 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     elif collector_name == tables.GADS_TABLE_NAME:
       collector = GAdsCollector(auth, collector_config, bq)
       overwrite = True
-    elif collector_name == tables.AppStoreTable:
+    elif collector_name == tables.APP_STORE_TABLE_NAME:
       collector = AppStoreCollector(config['apps'], bq)
-    elif collector_name == tables.PlayStoreTable:
+    elif collector_name == tables.PLAY_STORE_TABLE_NAME:
       collector = PlayStoreCollector(auth, config['apps'], bq)
 
     df = collector.collect()

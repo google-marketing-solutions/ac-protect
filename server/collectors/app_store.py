@@ -59,7 +59,7 @@ class AppStoreCollector(Collector):
     for app_id in self.apps:
       app_data = self.lookup_app_in_appstore(app_id)
       data.update(app_data)
-    return pd.json_normalize(app_data, sep='_')
+    return pd.json_normalize(data, sep='_')
 
   def process(self, all_app_data: pd.DataFrame) -> pd.DataFrame:
     """Removes unnecessary columns.
@@ -123,3 +123,4 @@ class AppStoreCollector(Collector):
 
     except requests.exceptions.HTTPError as e:
       logger.error('HTTP error occurred: %s', e)
+      return {}

@@ -58,7 +58,7 @@ class PlayStoreCollector(Collector):
       as a DataFrame.
     """
     logger.info('Play Store Collector - Running "collect"')
-    combined_df = None
+    combined_df = pd.DataFrame()
     for app_id in self.apps:
       app_data = self.get_app_from_play_store(app_id)
       app_df = pd.DataFrame(app_data)

@@ -19,10 +19,10 @@ from typing import List
 from typing import Optional
 
 import pandas as pd
+from google.cloud import exceptions
 from google.cloud.bigquery import Client
 from google.cloud.bigquery import Dataset
 from google.cloud.bigquery import LoadJobConfig
-from google.cloud.exceptions import ClientError
 
 from server.classes.alerts import Alert
 from server.classes.base_db import BaseDb
@@ -101,8 +101,12 @@ class BigQuery(BaseDb):
       result = query_job.result()
       if result.total_rows:
         return result.to_dataframe()
-      return pd.DataFrame()
+      return None
 
+    except exceptions.NotFound:
+      logger.error('Missing table %s.%s.%s from BQ.',
+                   self.project_id, self.dataset, table_id)
+      return None
     except Exception as e:
       raise BigQueryException(e) from e
 
@@ -135,7 +139,7 @@ class BigQuery(BaseDb):
 
     try:
       load_job.result()
-    except ClientError as e:
+    except exceptions.ClientError as e:
       logger.error('%s', load_job.errors)
       raise e
 

@@ -17,5 +17,5 @@ collectors:
     customer_id: null
     start_date: 10
     version: v15
-  collector_app_store: []
-  collector_play_store: []
+  collector_app_store: {}
+  collector_play_store: {}

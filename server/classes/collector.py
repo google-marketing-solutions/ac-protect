@@ -56,11 +56,11 @@ class Collector:
         """Saves collected data."""
         pass
 
-    def build_connection_alert(self, id: str, e: Exception):
+    def build_connection_alert(self, id_: str, e: Exception):
         return Alert(
-          COLLECTOR_ALERT_ID,
-          self.name,
-          'Connector missing permissions',
-          {'event_name': 'connector_error', 'error': str(e)},
-          f'{self.name}_{id}_connector_error',
+          app_id=COLLECTOR_ALERT_ID,
+          rule_name=self.name,
+          trigger='Connector missing permissions',
+          trigger_value={'event_name': 'connector_error', 'error': str(e)},
+          alert_id=f'{self.name}_{id_}_connector_error',
         )

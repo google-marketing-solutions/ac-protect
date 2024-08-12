@@ -81,14 +81,15 @@ class GAdsCollector(Collector):
                     e.errors)
 
         alert = self.build_connection_alert(
-          self.name,
           f'customer_{customer_id}',
-          e,
+          e
         )
         connection_alerts.append(alert)
-    conversion_actions = pd.concat(conversion_actions)
-    self.bq.write_alerts(connection_alerts)
-    return conversion_actions
+
+    if connection_alerts:
+        self.bq.write_alerts(connection_alerts)
+
+    return pd.concat(conversion_actions)
 
   def process(self, df: pd.DataFrame) -> pd.DataFrame:
     ''' Adds uid and os columns.

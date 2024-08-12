@@ -371,12 +371,14 @@ class VersionEventsRule(rules.Rule):
     cur_ver = self.find_latest_version(versions)
     prev_ver = self.find_previous_version(cur_ver, versions)
     os = app_events.iloc[0]['os'].lower()
-
     store_type = 'app_store' if os == 'ios' else 'play_store'
-    store = stores.get(store_type)
 
-    if isinstance(store, pd.DataFrame) and not store.empty:
-      store = store[store['app_id'] == app_id].reset_index(drop=True)
+    store = stores.get(store_type)
+    store = store if isinstance(store, pd.DataFrame) else (
+      pd.DataFrame(columns=['app_id']))
+    store = store[store['app_id'] == app_id].reset_index(drop=True)
+
+    if not store.empty:
       return self.check_missing_events_for_app(app_id, store, app_events,
                                                cur_ver, prev_ver, store_type)
 
@@ -434,23 +436,26 @@ class VersionEventsRule(rules.Rule):
       If the version in store is newer, returns the version number. Else returns
       None.
     """
-    store_ver = store.head(1)['version'][0]
-    if store_type == 'app_store':
-      if semantic_version.Version(store_ver) > semantic_version.Version(
-          events_cur_ver):
-        return store_ver
+    store_ver_values = store['version'].values.tolist()
+    store_ver = store_ver_values[0] if len(store_ver_values) > 0 else None
 
-    if store_type == 'play_store':
-      store_first = store[store['version'] == store_ver].tail(1).reset_index(
-        drop=True)
-      event_first = events[events['app_version'] == events_cur_ver].tail(
-          1).reset_index(drop=True)
+    if store_ver:
+      if store_type == 'app_store':
+        if semantic_version.Version(store_ver) > semantic_version.Version(
+            events_cur_ver):
+          return store_ver
 
-      store_timestamp = pd.to_datetime(store_first['timestamp'][0])
-      event_timestamp = pd.to_datetime(event_first['date_added'][0])
+      if store_type == 'play_store':
+        store_first = store[store['version'] == store_ver].tail(1).reset_index(
+          drop=True)
+        event_first = events[events['app_version'] == events_cur_ver].tail(
+            1).reset_index(drop=True)
 
-      if store_timestamp > event_timestamp:
-        return store_ver
+        store_timestamp = pd.to_datetime(store_first['timestamp'][0])
+        event_timestamp = pd.to_datetime(event_first['date_added'][0])
+
+        if store_timestamp > event_timestamp:
+          return store_ver
 
     return None
 

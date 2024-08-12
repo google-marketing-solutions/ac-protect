@@ -91,9 +91,10 @@ class GA4Collector(Collector):
         )
         connection_alerts.append(alert)
 
-    self.bq.write_alerts(connection_alerts)
-    df = pd.DataFrame(rows, columns=self.columns[:-2])
-    return df
+    if connection_alerts:
+      self.bq.write_alerts(connection_alerts)
+
+    return pd.DataFrame(rows, columns=self.columns[:-2])
 
   def process(self, df: pd.DataFrame) -> pd.DataFrame:
     """ Adds uid and date_added columns and ensures "event_count" is of type
