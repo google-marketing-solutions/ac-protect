@@ -322,6 +322,55 @@ EOF
 }
 
 
+resource "google_bigquery_data_transfer_config" "scheduled_query_app_store" {
+  display_name        = "Delete Old Rows"
+  data_source_id      = "scheduled_query"
+  destination_dataset_id = google_bigquery_dataset.dataset.dataset_id
+  schedule            = "every 24 hours"
+  disabled            = false
+  service_account_name = "${var.project_number}-compute@developer.gserviceaccount.com"
+  params = {
+    query = <<EOT
+      DELETE FROM `${var.project_id}.${google_bigquery_dataset.dataset.dataset_id}.${google_bigquery_table.collector_app_store.table_id}`
+      WHERE TIMESTAMP(timestamp) < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY);
+    EOT
+  }
+}
+
+
+resource "google_bigquery_data_transfer_config" "scheduled_query_ga4" {
+  display_name        = "Delete Old Rows"
+  data_source_id      = "scheduled_query"
+  destination_dataset_id = google_bigquery_dataset.dataset.dataset_id
+  schedule            = "every 24 hours"
+  disabled            = false
+  service_account_name = "${var.project_number}-compute@developer.gserviceaccount.com"
+  params = {
+    query = <<EOT
+      DELETE FROM `${var.project_id}.${google_bigquery_dataset.dataset.dataset_id}.${google_bigquery_table.collector_ga4.table_id}`
+      WHERE TIMESTAMP(date_added) < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY);
+    EOT
+  }
+}
+
+
+resource "google_bigquery_data_transfer_config" "scheduled_query_play_store" {
+  display_name        = "Delete Old Rows"
+  data_source_id      = "scheduled_query"
+  destination_dataset_id = google_bigquery_dataset.dataset.dataset_id
+  schedule            = "every 24 hours"
+  disabled            = false
+  service_account_name = "${var.project_number}-compute@developer.gserviceaccount.com"
+  params = {
+    query = <<EOT
+      DELETE FROM `${var.project_id}.${google_bigquery_dataset.dataset.dataset_id}.${google_bigquery_table.collector_play_store.table_id}`
+      WHERE TIMESTAMP(timestamp) < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 DAY);
+    EOT
+  }
+}
+
+
+
 #################################################################
 #   Cloud Run
 #################################################################
