@@ -154,10 +154,13 @@ class VersionEventsRule(rules.Rule):
     rule_violations = []
     conversion_events = self.get_conversion_events(collectors_data)
     app_ids_list = conversion_events['app_id'].unique().tolist()
+    logger.info("VersionEventsRule - looking on app ids - %s", app_ids_list)
     for app_id in app_ids_list:
       missing_events = self.get_app_missing_events(app_id, conversion_events,
                                                    stores)
       if missing_events:
+        logger.info("VersionEventsRule - found missing events for %s - %s",
+                    app_id, missing_events)
         rule_violations.extend(missing_events)
 
     return rule_violations
@@ -305,6 +308,9 @@ class VersionEventsRule(rules.Rule):
     prev_ver_events = self.get_events_for_version(prev_ver, df)
 
     missing_events = list(set(prev_ver_events).difference(set(cur_ver_events)))
+    logger.info("VersionEvents - cur_ver_events events - %s", cur_ver_events)
+    logger.info("VersionEvents - prev_ver_events events - %s", prev_ver_events)
+    logger.info("VersionEvents - missing events - %s", missing_events)
 
     missing_events = [
         VersionEventsEvent(event, app_id, cur_ver, prev_ver)
@@ -372,6 +378,9 @@ class VersionEventsRule(rules.Rule):
     prev_ver = self.find_previous_version(cur_ver, versions)
     os = app_events.iloc[0]['os'].lower()
     store_type = 'app_store' if os == 'ios' else 'play_store'
+    logger.info("VersionEventsEvent - looking for %s.%s.%s.%s",
+                app_id, cur_ver, prev_ver, os)
+
 
     store = stores.get(store_type)
     store = store if isinstance(store, pd.DataFrame) else (
@@ -405,6 +414,7 @@ class VersionEventsRule(rules.Rule):
       ver_store = store[store['version'] == store_ver]
       ver_events = events[events['app_version'] == cur_ver]
       if self.is_gap_larger_than_24_hours(ver_store, ver_events):
+        logger.info("VersionEvents - missing first open")
         # Potential issue with all store events, send first_open event Alert
         return [VersionEventsEvent('first_open', app_id, store_ver, cur_ver)]
       else:
@@ -476,7 +486,7 @@ class VersionEventsRule(rules.Rule):
     events_first = events.tail(1).reset_index()
 
     buffer = datetime.timedelta(hours=24)
-    store_timestamp = pd.to_datetime(store_last['timestamp'][0])
-    event_timestamp = pd.to_datetime(events_first['date_added'][0])
+    store_timestamp = pd.to_datetime(store_last['timestamp'][0]).tz_localize(None)
+    event_timestamp = pd.to_datetime(events_first['date_added'][0]).tz_localize(None)
 
     return store_timestamp > event_timestamp + buffer

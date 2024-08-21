@@ -59,7 +59,7 @@ def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
                                                       last_date_time_sent)
   if isinstance(df_alerts, pd.DataFrame) and not df_alerts.empty:
     logger.info('found alerts for %s', alert_id)
-    body = email.create_html_email(df_alerts)
+    body = email.create_html_from_template(df_alerts)
 
     logger.info('sending emails to - %s', recipients)
     email.send_email(

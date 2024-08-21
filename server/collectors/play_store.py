@@ -17,6 +17,7 @@ from dataclasses import fields
 import pandas as pd
 from google.oauth2 import credentials
 from googleapiclient import discovery
+from googleapiclient.errors import HttpError, UnknownApiNameOrVersion
 
 from server.classes.collector import Collector
 from server.db import tables
@@ -60,12 +61,15 @@ class PlayStoreCollector(Collector):
     logger.info('Play Store Collector - Running "collect"')
     combined_df = pd.DataFrame()
     for app_id in self.apps:
-      app_data = self.get_app_from_play_store(app_id)
-      app_df = pd.DataFrame(app_data)
-      app_df['app_id'] = app_id
-      combined_df = pd.concat([app_df, combined_df],
-                              join='outer',
-                              ignore_index=True)
+      try:
+        app_data = self.get_app_from_play_store(app_id)
+        app_df = pd.DataFrame(app_data)
+        app_df['app_id'] = app_id
+        combined_df = pd.concat([app_df, combined_df],
+                                join='outer',
+                                ignore_index=True)
+      except (HttpError, UnknownApiNameOrVersion) as e:
+        logger.error(e)
 
     return combined_df
 
