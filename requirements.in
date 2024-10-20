@@ -1,5 +1,5 @@
 pyyaml
-google-ads-api-report-fetcher
+google-ads-api-report-fetcher==1.15.1
 google-analytics-data
 google-cloud-bigquery
 pandas
@@ -12,6 +12,7 @@ pydantic
 beautifulsoup4
 
 streamlit
+watchdog==4.0.0
 python-dotenv
 google-api-python-client
 smart_open[gcs]
