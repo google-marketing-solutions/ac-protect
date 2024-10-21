@@ -1,3 +1,5 @@
+fail_fast: true
+default_stages: [commit]
 repos:
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v4.5.0
@@ -8,20 +10,21 @@ repos:
     - id: mixed-line-ending
       files: '.*\.sh'
       args: [--fix=lf]
+    - id: check-added-large-files
     - id: check-yaml
     - id: check-json
     - id: debug-statements
     - id: double-quote-string-fixer
--   repo: https://github.com/asottile/reorder-python-imports
-    rev: v3.12.0
-    hooks:
-    -   id: reorder-python-imports
-- repo: local
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: v1.8.0
   hooks:
-    - id: yapf
-      name: yapf-formatter
-      entry: yapf
-      args: [--style=yapf]
-      language: system
-      pass_filenames: false
-      always_run: true
+  - id: mypy
+    verbose: true
+    entry: bash -c 'mypy "$@" || true'
+    args: [--ignore-missing-imports]
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  rev: v0.4.6
+  hooks:
+    - id: ruff
+      args: [ --fix, --select, I]
+    - id: ruff-format
