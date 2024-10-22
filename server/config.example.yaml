@@ -12,7 +12,7 @@ collectors:
   ga4:
     properties: []
   gads:
-    version: "v15"
+    version: "v17"
     customer_id:
     start_date: 10
 bigquery:
