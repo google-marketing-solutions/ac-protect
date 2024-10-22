@@ -11,12 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Module for logging Frontend."""
+# pylint: disable=C0330, g-bad-import-order, g-multiple-import
+
 import logging
 
 logging.basicConfig(
-    format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
-    level=logging.INFO,
-    datefmt='%H:%M:%S')
-logger = logging.getLogger('matchr_log')
+  format='[%(asctime)s][%(name)s][%(levelname)s] %(message)s',
+  level=logging.INFO,
+  datefmt='%H:%M:%S',
+)
+logger = logging.getLogger('ac_protect_log')
 logging.getLogger('google.ads.googleads.client').setLevel(logging.WARNING)
 logging.getLogger('gaarf.query_executor').setLevel(logging.WARNING)
