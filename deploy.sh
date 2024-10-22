@@ -5,28 +5,31 @@ NC='\033[0m' # No Color
 
 # Variables
 PROJECT_ID=$(gcloud config get-value project 2> /dev/null)
-PROJECT_NAME=$(gcloud projects describe $PROJECT_ID --format="value(name)")
-PROJECT_NUMBER=$(gcloud projects describe $PROJECT_ID | grep projectNumber | sed "s/.* '//;s/'//g")
-SERVICE_ACCOUNT=$PROJECT_NUMBER-compute@developer.gserviceaccount.com
+PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" \
+  | grep projectNumber \
+  | sed "s/.* '//;s/'//g")
 PROJECT_NAME="ac-protect"
-TAG="latest" # e.g., "latest"
-LOCATION_ID="us-central"
+LOCATION="us"
 
 create_default_bucket() {
     echo -e "${COLOR}Creating default bucket $PROJECT_ID...${NC}"
     gsutil mb gs://$PROJECT_ID
 }
 
+create_artifact_registry() {
+    echo -e "${COLOR}Configuring Artifact Registry...${NC}"
+    gcloud services enable artifactregistry.googleapis.com
+}
+
 deploy_config() {
     echo -e "${COLOR}Deploying Configs...${NC}"
-    gsutil cp ./config.yaml gs://$PROJECT_ID/$PROJECT_NAME/config.yaml
+    gsutil cp ./config.yaml gs://"$PROJECT_ID"/$PROJECT_NAME/config.yaml
 }
 
 create_image() {
     echo -e "${COLOR}Creating Image...${NC}"
     gcloud services enable cloudbuild.googleapis.com
     gcloud builds submit --config cloudbuild.yaml . --substitutions=_PROJECT_NAME=$PROJECT_NAME
-    # gcloud builds submit  --tag gcr.io/$PROJECT_ID/$PROJECT_NAME
 }
 
 run_tf() {
@@ -43,7 +46,7 @@ run_tf() {
     gcloud services enable bigquerydatatransfer.googleapis.com
 
     terraform init -backend-config="bucket=$PROJECT_ID"
-    terraform apply -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID" -auto-approve
+    terraform apply -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -auto-approve
     echo -e "${COLOR}Infra Created!${NC}"
 
     FRONTEND_SITE=$(terraform output -raw service_url)
@@ -52,20 +55,39 @@ run_tf() {
 
 plan_tf() {
     terraform init -backend-config="bucket=$PROJECT_ID"
-    terraform plan -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID"
+    terraform plan -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER"
 }
 
 refresh_tf() {
-    terraform refresh -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID"
+    terraform refresh -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER"
 }
 
 destroy_tf() {
-    terraform apply -destroy -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -var "location_id=$LOCATION_ID"
+    terraform apply -destroy -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER"
 }
 
 cleanup_builds() {
-    gsutil ls -l gs://artifacts.${PROJECT_ID}.appspot.com/containers/images | sort -k2r | tail -n +6 | awk '{print $3}' | gsutil -m rm -I
-    gsutil ls -l gs://${PROJECT_ID}_cloudbuild/source | sort -k2r | tail -n +6 | awk '{print $3}' | gsutil -m rm -I
+    echo -e "${COLOR}Setting up cleanup policies...${NC}"
+
+    # Keep only last 5 images in artifact registry
+    gcloud artifacts repositories set-cleanup-policies gcr.io \
+      --policy=- \
+      --no-dry-run \
+      --location="$LOCATION" << EOF
+      [{
+        "name": "KEEP LAST 5 IMAGES",
+        "action": {"type": "Keep"},
+        "mostRecentVersions": {
+          "keepCount": 5
+        }
+      }]
+EOF
+    # Clean up old build artifacts
+    gsutil ls -l gs://"${PROJECT_ID}"_cloudbuild/source \
+      | sort -k2r \
+      | awk 'NR > 5 {print $3}' \
+      | xargs -r gsutil -m rm -I
+
 }
 
 deploy_image() {
@@ -75,6 +97,7 @@ deploy_image() {
 
 deploy_all() {
     create_default_bucket
+    create_artifact_registry
     deploy_config
     create_image
     run_tf

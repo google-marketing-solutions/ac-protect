@@ -12,10 +12,6 @@ variable "region" {
   type    = string
   default = "us-central1"
 }
-variable "location_id" {
-  type    = string
-  default = "us-central"
-}
 variable "location" {
   type    = string
   default = "US"
@@ -384,7 +380,7 @@ resource "google_cloud_run_v2_job" "run_job" {
     task_count = 1
     template {
       containers {
-        image = "gcr.io/${var.project_id}/${var.service_name}_job@${data.external.latest_image_digest.result["job"]}"
+        image = "gcr.io/${var.project_id}/${var.service_name}_job:latest"
         resources {
           limits = {
             cpu = "1000m"
