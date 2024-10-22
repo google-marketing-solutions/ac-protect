@@ -11,25 +11,24 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" The Orchestrator is in charge of running all relevant functions
+"""The Orchestrator is in charge of running all relevant functions.
+
 - loading configs
 - running relevant connectors
 - running relevant modules
 - sending alerts
 """
-from typing import Optional
+# pylint: disable=C0330, g-bad-import-order, g-multiple-import
+
+from typing import Any, Dict, Optional
 
 import pandas as pd
 from google.auth.exceptions import DefaultCredentialsError
 from pydantic import ValidationError
 
 from server.classes.collector import COLLECTOR_ALERT_ID
-from server.collectors.app_store import AppStoreCollector
-from server.collectors.ga4 import GA4Collector
-from server.collectors.gads import GAdsCollector
-from server.collectors.play_store import PlayStoreCollector
-from server.config import get_config
-from server.config import validate_config
+from server.collectors import app_store, ga4, gads, play_store
+from server.config import get_config, validate_config
 from server.db import tables
 from server.db.bq import BigQuery
 from server.env import CONFIG_PATH
@@ -40,8 +39,10 @@ from server.services import email
 
 RULES = [IntervalEventsRule, VersionEventsRule]
 
-def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
-                  recipients: list[str]) -> None:
+
+def handle_alerts(
+  config: Dict[str, Any], bq: BigQuery, alert_id: str, recipients: list[str]
+) -> None:
   """Sends Alerts if needed.
 
   Args:
@@ -55,24 +56,27 @@ def handle_alerts(config: dict, bq: BigQuery, alert_id: str,
 
   """
   last_date_time_sent = email.get_last_date_time_email_sent(bq, alert_id)
-  df_alerts = bq.get_alerts_for_app_since_date_time(alert_id,
-                                                      last_date_time_sent)
+  df_alerts = bq.get_alerts_for_app_since_date_time(
+    alert_id, last_date_time_sent
+  )
   if isinstance(df_alerts, pd.DataFrame) and not df_alerts.empty:
     logger.info('found alerts for %s', alert_id)
     body = email.create_html_from_template(df_alerts)
 
     logger.info('sending emails to - %s', recipients)
     email.send_email(
-        config=config,
-        sender='',
-        to=recipients,
-        subject=f'[AC Protect] Alerts for AppId: {alert_id}',
-        message_text=body,
-        bq=bq,
-        app_id=alert_id)
+      config=config,
+      sender='',
+      to=recipients,
+      subject=f'[AC Protect] Alerts for AppId: {alert_id}',
+      message_text=body,
+      bq=bq,
+      app_id=alert_id,
+    )
+
 
 def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
-  """ The main function to run the orchestrator.
+  """The main function to run the orchestrator.
 
   Args:
     config_yaml_path: The path to the YAML file (local or GCS). Defaults to
@@ -105,23 +109,25 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
   overwrite = False
 
   for collector_name in collector_names:
-    logger.info('Running collector - %s',collector_name)
+    logger.info('Running collector - %s', collector_name)
     collector_config = config['collectors'][collector_name]
 
+    collector = None
     if collector_name == tables.GA4_TABLE_NAME:
-      collector = GA4Collector(auth, collector_config,bq)
+      collector = ga4.GA4Collector(auth, collector_config, bq)
     elif collector_name == tables.GADS_TABLE_NAME:
-      collector = GAdsCollector(auth, collector_config, bq)
+      collector = gads.GAdsCollector(auth, collector_config, bq)
       overwrite = True
     elif collector_name == tables.APP_STORE_TABLE_NAME:
-      collector = AppStoreCollector(config['apps'], bq)
+      collector = app_store.AppStoreCollector(config['apps'], bq)
     elif collector_name == tables.PLAY_STORE_TABLE_NAME:
-      collector = PlayStoreCollector(auth, config['apps'], bq)
+      collector = play_store.PlayStoreCollector(auth, config['apps'], bq)
 
-    df = collector.collect()
-    if not df.empty:
-      df = collector.process(df)
-      collector.save(df, overwrite)
+    if collector:
+      df = collector.collect()
+      if not df.empty:
+        df = collector.process(df)
+        collector.save(df, overwrite)
 
   for rule in RULES:
     logger.info('Running rule - %s', rule.__name__)
