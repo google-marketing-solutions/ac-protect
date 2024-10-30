@@ -11,13 +11,19 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+# pylint: disable=C0330, g-bad-import-order, g-multiple-import
 from enum import Enum
 
+
 class Scopes(Enum):
-  ''' Enum that holds all scopes that we are using in the solution (accept
-  Google Ads which is implicitly used in gaarf)'''
+  """Enum of scopes that we are using in the solution.
+
+  All scopes that are used in the solution, except for Google Ads which is
+  implicitly used in gaarf.
+  """
 
   GMAIL_SEND = 'https://www.googleapis.com/auth/gmail.send'
   USERINFO_EMAIL = 'https://www.googleapis.com/auth/userinfo.email'
   CLOUD_PLATFORM = 'https://www.googleapis.com/auth/cloud-platform'
   ANALYTICS_READ_ONLY = 'https://www.googleapis.com/auth/analytics.readonly'
+  ANDROIDPUBLISHER = 'https://www.googleapis.com/auth/androidpublisher'
