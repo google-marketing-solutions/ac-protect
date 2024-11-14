@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""Tests for Google Ads Collector."""
+# pylint: disable=C0330, missing-function-docstring, g-multiple-import, g-bad-import-order
+
 import re
-from unittest.mock import patch
+from unittest import mock
 
 import pandas as pd
 import pytest
-from gaarf.query_executor import AdsReportFetcher
-from gaarf.report import GaarfReport
+from gaarf import report, report_fetcher
 
 from server.collectors.gads import GAdsCollector
 from server.db.bq import BigQuery
@@ -29,7 +31,6 @@ def fixture_collector_config(config):
 
 
 class TestGadsCollectorBase:
-
   def test_init_ga4_collector(self, auth, collector_config, db):
     collector = GAdsCollector(auth, collector_config, db)
 
@@ -39,20 +40,20 @@ class TestGadsCollectorBase:
 
 
 class TestMainFunctions:
-
   @pytest.fixture(scope='class', name='collector')
   def fixture_collector(self, auth, collector_config, db):
     return GAdsCollector(auth, collector_config, db)
 
-  @patch('server.collectors.gads.AdsReportFetcher.fetch')
-  @patch('server.collectors.gads.AdsReportFetcher.expand_mcc')
-  def test_collect(self, mock_expand_mcc, mock_fetcher, collector, gads_df,
-                   gads_campaigns):
+  @mock.patch('server.collectors.gads.AdsReportFetcher.fetch')
+  @mock.patch('server.collectors.gads.AdsReportFetcher.expand_mcc')
+  def test_collect(
+    self, mock_expand_mcc, mock_fetcher, collector, gads_df, gads_campaigns
+  ):
     # def test_collect(self, collector: GAdsCollector):
     mock_expand_mcc.return_value = self._create_mock_expand_mcc()
     mock_fetcher.side_effect = [
-        self._create_mock_fetch_campaigns(gads_campaigns),
-        self._create_mock_fetch_conversion_action(gads_df)
+      self._create_mock_fetch_campaigns(gads_campaigns),
+      self._create_mock_fetch_conversion_action(gads_df),
     ]
 
     res = collector.collect()
@@ -69,15 +70,16 @@ class TestMainFunctions:
     pass
 
   def _create_mock_expand_mcc(self):
-    return [ 1234567890, 9876543210 ]
+    return [1234567890, 9876543210]
 
   def _create_mock_fetch_campaigns(self, gads_campaigns):
     column_names = [
       'campaign_name',
       'campaign_app_campaign_setting_app_id',
-      'campaign_selective_optimization_conversion_actions']
+      'campaign_selective_optimization_conversion_actions',
+    ]
     results = gads_campaigns[column_names].values.tolist()
-    return GaarfReport(results, column_names)
+    return report.GaarfReport(results, column_names)
 
   def _create_mock_fetch_conversion_action(self, gads_df):
     column_names = [
@@ -86,36 +88,38 @@ class TestMainFunctions:
       'property_name',
       'event_name',
       'type',
-      'last_conversion_date'
+      'last_conversion_date',
     ]
     results = gads_df[column_names].values.tolist()
-    return GaarfReport(results, column_names)
-
+    return report.GaarfReport(results, column_names)
 
 
 class TestHelperFunctions:
-
   @pytest.fixture(scope='class', name='collector')
   def fixture_collector(self, auth, collector_config, db):
     return GAdsCollector(auth, collector_config, db)
 
   def test_create_report_fetcher(self, collector: GAdsCollector):
     resp = collector.create_report_fetcher()
-    assert isinstance(resp, AdsReportFetcher)
+    assert isinstance(resp, report_fetcher.AdsReportFetcher)
 
   def test_create_google_ads_yaml(self, collector: GAdsCollector, auth):
     google_ads_yaml = collector.create_google_ads_yaml(auth)
     required_keys = [
-        'client_id', 'client_secret', 'refresh_token', 'login_customer_id',
-        'developer_token', 'use_proto_plus']
+      'client_id',
+      'client_secret',
+      'refresh_token',
+      'login_customer_id',
+      'developer_token',
+      'use_proto_plus',
+    ]
 
     assert set(required_keys).issubset(google_ads_yaml.keys())
     for key in required_keys:
       assert auth[key] == google_ads_yaml[key]
 
-
   def test_create_campaigns_query(self, collector: GAdsCollector):
-    valid_query = '''
+    valid_query = """
       SELECT
         campaign.name,
         campaign.app_campaign_setting.app_id,
@@ -125,7 +129,7 @@ class TestHelperFunctions:
       WHERE
         campaign.app_campaign_setting.app_id IS NOT NULL
         AND campaign.status = 'ENABLED'
-    '''
+    """
     valid_query = re.sub(r'\s+', ' ', valid_query).strip()
 
     query = collector.create_campaigns_query()
@@ -133,16 +137,18 @@ class TestHelperFunctions:
 
     assert valid_query == query
 
-  def test_create_conversion_actions_queries(self, collector: GAdsCollector,
-                                             customer_ids: list[str]):
+  def test_create_conversion_actions_queries(
+    self, collector: GAdsCollector, customer_ids: list[str]
+  ):
     conversion_action_resource_names = [
-        'customers/1234567890/conversionActions/1111111111',
-        'customers/1234567890/conversionActions/2222222222',
-        'customers/0987654321/conversionActions/1111111111',
-        'customers/0987654321/conversionActions/2222222222']
+      'customers/1234567890/conversionActions/1111111111',
+      'customers/1234567890/conversionActions/2222222222',
+      'customers/0987654321/conversionActions/1111111111',
+      'customers/0987654321/conversionActions/2222222222',
+    ]
     substr = 'conversion_action.resource_name IN'
 
-    valid_query = '''
+    valid_query = """
           SELECT
             conversion_action.app_id as app_id,
             conversion_action.firebase_settings.property_id as property_id,
@@ -157,43 +163,47 @@ class TestHelperFunctions:
             AND conversion_action.app_id IS NOT NULL
             AND conversion_action.firebase_settings.property_id != 0
             AND conversion_action.resource_name IN
-    '''
+    """
     valid_query = re.sub(r'\s+', ' ', valid_query).strip()
 
     queries_dict = collector.create_conversion_actions_queries(
-      customer_ids, conversion_action_resource_names)
+      customer_ids, conversion_action_resource_names
+    )
 
     for _, query in queries_dict.items():
-      query = re.sub(r'\s+', ' ', query)
-      index = query.find(substr)
-      query = query[:index + len(substr)].strip()
+      q = re.sub(r'\s+', ' ', query)
+      index = q.find(substr)
+      q = q[: index + len(substr)].strip()
 
-      assert valid_query == query
+      assert valid_query == q
 
-  def test_parse_conversion_actions_from_campaigns(self, collector: GAdsCollector):
-
-    conversion_action_resource_names = [
-        [
-            'customers/1234567890/conversionActions/1111111111',
-            'customers/1234567890/conversionActions/2222222222'
-        ],
-        [
-            'customers/1234567890/conversionActions/1111111111',
-            'customers/1234567890/conversionActions/2222222222'
-        ],
-        [
-            'customers/0987654321/conversionActions/1111111111',
-            'customers/0987654321/conversionActions/2222222222'
-        ],
-        [
-            'customers/0987654321/conversionActions/1111111111',
-            'customers/0987654321/conversionActions/2222222222'
-        ]
+  def test_parse_conversion_actions_from_campaigns(
+    self, collector: GAdsCollector
+  ):
+    assert_length = 4
+    resource_names = [
+      [
+        'customers/1234567890/conversionActions/1111111111',
+        'customers/1234567890/conversionActions/2222222222',
+      ],
+      [
+        'customers/1234567890/conversionActions/1111111111',
+        'customers/1234567890/conversionActions/2222222222',
+      ],
+      [
+        'customers/0987654321/conversionActions/1111111111',
+        'customers/0987654321/conversionActions/2222222222',
+      ],
+      [
+        'customers/0987654321/conversionActions/1111111111',
+        'customers/0987654321/conversionActions/2222222222',
+      ],
     ]
-    df = pd.DataFrame({'campaign_selective_optimization_conversion_actions':
-                       conversion_action_resource_names})
+    df = pd.DataFrame(
+      {'campaign_selective_optimization_conversion_actions': resource_names}
+    )
     ca = collector._parse_conversion_actions_from_campaigns(df)
-    assert len(ca) == 4
+    assert len(ca) == assert_length
 
   def test_get_os__android(self, collector: GAdsCollector):
     os = collector._get_os('FIREBASE_ANDROID_CUSTOM')
@@ -220,21 +230,24 @@ class TestHelperFunctions:
     assert isinstance(uid, pd.Series)
     assert test_uid == uid[0]
 
-  def test_get_conversion_action_ids_for_customer_id(self, collector: GAdsCollector):
+  def test_get_conversion_action_ids_for_customer_id(
+    self, collector: GAdsCollector
+  ):
     customer_id = '1234567890'
     customer_resources = [
-        'customers/1234567890/conversionActions/1111111111',
-        'customers/1234567890/conversionActions/2222222222'
+      'customers/1234567890/conversionActions/1111111111',
+      'customers/1234567890/conversionActions/2222222222',
     ]
     non_customer_resources = [
-        'customers/0987654321/conversionActions/1111111111',
-        'customers/0987654321/conversionActions/2222222222'
+      'customers/0987654321/conversionActions/1111111111',
+      'customers/0987654321/conversionActions/2222222222',
     ]
-    conversion_action_resource_names = customer_resources + non_customer_resources
+    conversion_action_resource_names = (
+      customer_resources + non_customer_resources
+    )
 
     resources = collector._get_conversion_action_resource_name_for_customer_id(
-      conversion_action_resource_names,
-      customer_id
+      conversion_action_resource_names, customer_id
     )
 
     assert resources == "', '".join(customer_resources)

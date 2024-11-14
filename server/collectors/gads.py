@@ -18,7 +18,7 @@ from typing import Any, Dict, List
 
 import pandas as pd
 from gaarf.api_clients import GoogleAdsApiClient
-from gaarf.query_executor import AdsReportFetcher
+from gaarf.report_fetcher import AdsReportFetcher
 
 from server.classes import collector
 from server.db import bq, tables
