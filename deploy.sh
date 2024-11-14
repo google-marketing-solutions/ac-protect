@@ -44,6 +44,7 @@ run_tf() {
     gcloud services enable iam.googleapis.com
     gcloud services enable cloudresourcemanager.googleapis.com
     gcloud services enable bigquerydatatransfer.googleapis.com
+    gcloud services enable androidpublisher.googleapis.com
 
     terraform init -backend-config="bucket=$PROJECT_ID"
     terraform apply -var "project_id=$PROJECT_ID" -var "project_number=$PROJECT_NUMBER" -auto-approve
