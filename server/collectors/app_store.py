@@ -11,7 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Defines a Collector class for GA4."""
+"""Defines a Collector class for App Store."""
+# pylint: disable=C0330
+
 from dataclasses import fields
 
 import pandas as pd
@@ -56,7 +58,8 @@ class AppStoreCollector(Collector):
 
     logger.info('AppStore Collector - Running "collect"')
     data = {}
-    for app_id in self.apps:
+    app_store_app_ids = [app_id for app_id in self.apps if app_id.isnumeric()]
+    for app_id in app_store_app_ids:
       app_data = self.lookup_app_in_appstore(app_id)
       data.update(app_data)
     return pd.json_normalize(data, sep='_')
@@ -78,7 +81,6 @@ class AppStoreCollector(Collector):
     df['version'] = all_app_data['version'].astype('string')
     df['timestamp'] = pd.Timestamp.today()
 
-
     return df
 
   def save(self, df: pd.DataFrame, overwrite: bool = False) -> None:
@@ -92,12 +94,13 @@ class AppStoreCollector(Collector):
       overwrite: Whether to overwrite existing data in the table. Defaults to
       False.
     """
-    logger.info('AppStore Collector - saving data to %s',
-                tables.APP_STORE_TABLE_NAME)
+    logger.info(
+      'AppStore Collector - saving data to %s', tables.APP_STORE_TABLE_NAME
+    )
     self.bq.write_to_table(tables.APP_STORE_TABLE_NAME, df, overwrite)
     self.bq.update_last_run(self.name, self.type_)
 
-  def lookup_app_in_appstore(self, app_id: int) -> dict[str,str]:
+  def lookup_app_in_appstore(self, app_id: str) -> dict[str, str]:
     """Trigger a request ao App Store Search API.
 
     Request all information for a specific app id. Includes version and trackId
@@ -114,7 +117,8 @@ class AppStoreCollector(Collector):
 
     try:
       response = requests.get(
-          f'https://itunes.apple.com/lookup?id={app_id}', timeout=10)
+        f'https://itunes.apple.com/lookup?id={app_id}', timeout=10
+      )
       response.raise_for_status()
 
       data = response.json()
