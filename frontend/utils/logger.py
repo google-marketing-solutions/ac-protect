@@ -22,5 +22,4 @@ logging.basicConfig(
   datefmt='%H:%M:%S',
 )
 logger = logging.getLogger('ac_protect_log')
-logging.getLogger('google.ads.googleads.client').setLevel(logging.WARNING)
-logging.getLogger('gaarf.query_executor').setLevel(logging.WARNING)
+logging.getLogger('gaarf.report_fetcher').setLevel(logging.WARNING)
