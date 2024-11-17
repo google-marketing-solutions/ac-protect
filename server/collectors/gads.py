@@ -221,29 +221,6 @@ class GAdsCollector(collector.Collector):
         conversion_action_queries[customer_id] = query
     return conversion_action_queries
 
-    #     resp = self._run_query(query, [customer_id])
-    #     if resp:
-    #       conversion_actions.append(resp.to_pandas())
-
-    # return pd.concat(conversion_actions)
-
-  # def _run_query(self,
-  #                report_fetcher,
-  #                query: str,
-  #                customer_ids: List) -> GaarfReport:
-  #   ''' Send query to Google Ads
-
-  #   Args:
-  #     query: the GAQL query that we want to run
-  #     customer_id: Google Ads customer_id that we want to run the query for
-
-  #   Returns:
-  #     GaarfReport object with the query results
-  #   '''
-
-  #   result = report_fetcher.fetch(query, customer_ids)
-  #   return result
-
   def _parse_conversion_actions_from_campaigns(self, df: pd.DataFrame) -> List:
     """Extracts conversion actions from Google Ads.
 
