@@ -11,27 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Defines an Email service."""
+"""Defines an Email service."""
+# pylint: disable=C0330, g-multiple-import
+
 import base64
 import json
 from datetime import datetime
-from email.mime import image
-from email.mime import multipart
-from email.mime import text
-from typing import Optional
+from email.mime import image, multipart, text
+from typing import Any, Optional
 
 import jinja2
 import pandas as pd
-from google.oauth2.credentials import Credentials
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
+from google.oauth2 import credentials
+from googleapiclient import discovery, errors
 
-from server.db.bq import BigQuery
+from server import utils
+from server.db import bq
 from server.logger import logger
-from server.utils import Scopes
 
 
-def get_credentials(config: dict) -> Credentials:
+def get_credentials(config: dict[str, Any]) -> credentials.Credentials:
   """Creates Credentials object from config file.
 
   Args:
@@ -42,16 +41,19 @@ def get_credentials(config: dict) -> Credentials:
   """
   creds = None
   user_info = {
-      'client_id': config['auth']['client_id'],
-      'refresh_token': config['auth']['refresh_token'],
-      'client_secret': config['auth']['client_secret']
+    'client_id': config['auth']['client_id'],
+    'refresh_token': config['auth']['refresh_token'],
+    'client_secret': config['auth']['client_secret'],
   }
-  creds = Credentials.from_authorized_user_info(user_info,
-                                                [Scopes.GMAIL_SEND.value])
+  creds = credentials.Credentials.from_authorized_user_info(
+    user_info, [utils.Scopes.GMAIL_SEND.value]
+  )
   return creds
 
-def create_message(sender: str, to: list[str], subject: str,
-                   body: str) -> multipart.MIMEMultipart:
+
+def create_message(
+  sender: str, to: list[str], subject: str, body: str
+) -> multipart.MIMEMultipart:
   """Creates a message as a MIMEMultipart object.
 
   Creates the message and attaches the gTech logo to the email via Content-ID.
@@ -68,7 +70,7 @@ def create_message(sender: str, to: list[str], subject: str,
 
   msg = multipart.MIMEMultipart('related')
   msg['to'] = ','.join(to)
-  msg['from'] = sender  #TODO - is this necessary? if we are sending from 'me'..
+  msg['from'] = sender
   msg['subject'] = subject
 
   msg_alternative = multipart.MIMEMultipart('alternative')
@@ -84,8 +86,10 @@ def create_message(sender: str, to: list[str], subject: str,
 
   return msg
 
-def send_message(config:dict, message:multipart.MIMEMultipart
-                 ) -> Optional[dict]:
+
+def send_message(
+  config: dict[str, Any], message: multipart.MIMEMultipart
+) -> Optional[dict]:
   """Sends a message using the Gmail API.
 
   Args:
@@ -97,29 +101,34 @@ def send_message(config:dict, message:multipart.MIMEMultipart
     was an error.
   """
   creds = get_credentials(config)
-  service = build('gmail', 'v1', credentials=creds)
+  service = discovery.build('gmail', 'v1', credentials=creds)
   user_id = 'me'
 
   raw = base64.urlsafe_b64encode(message.as_bytes())
 
   try:
     message = (
-        service
-        .users()
-        .messages()
-        .send(
-            userId=user_id, body={
-                'raw': raw.decode()
-            })
-            .execute())
+      service.users()
+      .messages()
+      .send(userId=user_id, body={'raw': raw.decode()})
+      .execute()
+    )
     logger.info('Message Id: %s', message['id'])
     return message
-  except HttpError as error:
-    logger.error('An error occurred when trying to send the email: %s',error)
+  except errors.HttpError as error:
+    logger.error('An error occurred when trying to send the email: %s', error)
     return None
 
-def send_email(config: dict, sender: str, to: list[str], subject: str,
-               message_text: str, bq: BigQuery, app_id: str) -> None:
+
+def send_email(
+  config: dict[str, Any],
+  sender: str,
+  to: list[str],
+  subject: str,
+  message_text: str,
+  bigquery: bq.BigQuery,
+  app_id: str,
+) -> None:
   """Creates and sends the email message.
 
   The main function in this module that creates the email message, sends it and
@@ -131,27 +140,29 @@ def send_email(config: dict, sender: str, to: list[str], subject: str,
     to: List of emails to send the email to.
     subject: The subject of the email.
     message_text: The body of the email.
-    bq: A BigQuery object to update the last run.
+    bigquery: A BigQuery object to update the last run.
     app_id: The App id.
   """
   message = create_message(sender, to, subject, message_text)
   send_message(config, message)
 
-  # TODO - move all bq updates to orchestrator
-  bq.update_last_run('Email', f'service-{app_id}')
+  bigquery.update_last_run('Email', f'service-{app_id}')
 
-def get_last_date_time_email_sent(bq: BigQuery,
-                             app_id: str) -> Optional[datetime]:
+
+def get_last_date_time_email_sent(
+  bigquery: bq.BigQuery, app_id: str
+) -> Optional[datetime]:
   """Gets the date that the last email was sent for a specific app Id.
 
   Args:
-    bq: A BigQuery object.
+    bigquery: A BigQuery object.
     app_id: The App Id to lookup.
 
   Results:
     Date the last email was sent.
   """
-  return bq.get_last_run('Email', f'service-{app_id}')
+  return bigquery.get_last_run('Email', f'service-{app_id}')
+
 
 def create_html_from_template(alerts_data: pd.DataFrame) -> str:
   """Creates an html file from a template.
@@ -164,11 +175,13 @@ def create_html_from_template(alerts_data: pd.DataFrame) -> str:
   Returns:
     A string representing the html to be sent.
   """
-  env = jinja2.Environment(loader=jinja2.FileSystemLoader(
-    searchpath='server/services/'))
+  env = jinja2.Environment(
+    loader=jinja2.FileSystemLoader(searchpath='server/services/')
+  )
   template = env.get_template('static/email_template.jinja')
   context = create_context(alerts_data)
   return template.render(context)
+
 
 def create_context(alerts_data: pd.DataFrame) -> dict:
   """Creates a dictionary for each alert.
@@ -193,7 +206,8 @@ def create_context(alerts_data: pd.DataFrame) -> dict:
   """
   alert_types = alerts_data['trigger'].unique()
   alerts_data['trigger_value_parsed'] = alerts_data['trigger_value'].apply(
-      parse_trigger_value)
+    parse_trigger_value
+  )
 
   context = {}
   context['app_id'] = alerts_data.iloc[0][0]
@@ -201,14 +215,18 @@ def create_context(alerts_data: pd.DataFrame) -> dict:
 
   for alert_type in alert_types:
     alerts = alerts_data['trigger_value_parsed'][
-      alerts_data['trigger'] == alert_type]
-    context['alerts_by_type'].append({
+      alerts_data['trigger'] == alert_type
+    ]
+    context['alerts_by_type'].append(
+      {
         'alert_name': alert_type,
         'alerts': alerts.tolist(),
-        'timestamp': alerts_data.iloc[0]['timestamp']
-    })
+        'timestamp': alerts_data.iloc[0]['timestamp'],
+      }
+    )
 
   return context
+
 
 def parse_trigger_value(trigger_value: str) -> dict:
   """Converts trigger values to dict format.

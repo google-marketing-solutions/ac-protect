@@ -70,7 +70,7 @@ def handle_alerts(
       to=recipients,
       subject=f'[AC Protect] Alerts for AppId: {alert_id}',
       message_text=body,
-      bq=bq,
+      bigquery=bq,
       app_id=alert_id,
     )
 
