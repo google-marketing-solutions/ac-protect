@@ -6,5 +6,4 @@ credentials.json
 terraform.tfstate
 infra.tf
 config.yaml
-config.example.yaml
 .env

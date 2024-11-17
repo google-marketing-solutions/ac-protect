@@ -19,5 +19,5 @@ RUN pip install --require-hashes --no-cache-dir --no-deps -r requirements.txt
 # Make port 8080 available to the world outside this container
 EXPOSE 8080
 
-# Run start.sh when the container launches
+# Run app.py when the container launches
 CMD ["streamlit", "run", "app.py", "--server.port", "8080"]

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Replace with your actual image path in GCR
+# Create the image path
 PROJECT_ID=$(gcloud config get-value project 2> /dev/null)
 PROJECT_NAME="ac-protect"
 IMAGE_PATH="gcr.io/$PROJECT_ID/$PROJECT_NAME"

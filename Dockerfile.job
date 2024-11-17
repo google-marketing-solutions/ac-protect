@@ -19,5 +19,5 @@ COPY . /ac-protect
 # Install any needed packages specified in requirements.txt
 RUN pip install --require-hashes --no-cache-dir --no-deps -r requirements.txt
 
-# Run start.sh when the container launches
+# Run orchestrator.py when the container launches
 CMD ["python", "server/orchestrator.py"]

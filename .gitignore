@@ -1,10 +1,11 @@
 /venv
 **/__pycache__/
-server/tests/test_files
+/*_cache
 .pytest_cache
 pylintrc
 **/.DS_Store
 
 .terraform*
 *tfstate*
-email_engine.zip
+
+server/tests/test_files

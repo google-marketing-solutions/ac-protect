@@ -392,7 +392,7 @@ resource "google_cloud_run_v2_job" "run_job" {
   }
 }
 
-resource "google_cloud_scheduler_job" "example_scheduler" {
+resource "google_cloud_scheduler_job" "job_scheduler" {
   name             = "${var.service_name}-job-scheduler"
   schedule         = "0 0 * * *"
   attempt_deadline = "320s"
@@ -418,7 +418,7 @@ resource "google_cloud_run_service" "run_service" {
   location = var.region
   metadata {
     annotations = {
-      "run.googleapis.com/ingress"          = "all",
+      "run.googleapis.com/ingress" = "all",
     }
   }
   template {
