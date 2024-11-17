@@ -11,12 +11,13 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-""" Environment variables used by the project"""
+"""Environment variables used by the project."""
+# pylint: disable=C0330, g-multiple-import
+
 import pathlib
 from os import getenv
 
-from dotenv import find_dotenv
-from dotenv import load_dotenv
+from dotenv import find_dotenv, load_dotenv
 
 PROJECT_ID = getenv('PROJECT_ID', '')
 
@@ -28,5 +29,6 @@ LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.resolve()}/config.yaml'
 REMOTE_CONFIG_PATH = f'gs://{PROJECT_ID}/ac-protect/config.yaml'
 CONFIG_FILE_PATH = REMOTE_CONFIG_PATH if PROJECT_ID else LOCAL_CONFIG_PATH
 CONFIG_PATH = getenv('CONFIG_PATH', CONFIG_FILE_PATH)
-REDIRECT_URI = getenv('REDIRECT_URI',
-                      'https://sdk.cloud.google.com/authcode.html')
+REDIRECT_URI = getenv(
+  'REDIRECT_URI', 'https://sdk.cloud.google.com/authcode.html'
+)
