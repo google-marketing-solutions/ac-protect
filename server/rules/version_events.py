@@ -1,4 +1,4 @@
-# Copyright 2023 Google LLC
+# Copyright 2024 Google LLC
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,23 +12,27 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Defines Version Events Rule and Event classes."""
+# pylint: disable=C0330, g-multiple-import
+
 import dataclasses
 import datetime
 import re
-from typing import Any
-from typing import List
+from typing import Any, List
 
 import pandas as pd
 import semantic_version
 
-from server.classes import alerts
-from server.classes import rules
+from server.classes import alerts, rules
 from server.db import tables
 from server.logger import logger
+
 
 @dataclasses.dataclass
 class VersionEventsEvent(rules.RuleObject):
   """Dataclass for VersionEvent rule violation.
+
+  A Version Event is an event that was triggered in a previous version, but is
+  missing from the current version.
 
   Attributes:
     event_name: The name of the event that was triggered the violation.
@@ -37,6 +41,7 @@ class VersionEventsEvent(rules.RuleObject):
     prev_ver: Previous version of the app, where the event was last seen.
 
   """
+
   event_name: str
   app_id: str
   cur_ver: str
@@ -50,14 +55,17 @@ class VersionEventsRule(rules.Rule):
   previous version that we dont see in the current version.
 
   Attributes:
-    app_ids: a list of app identifiers (formated as strings).
+    app_ids: A list of app identifiers (formatted as strings).
   """
 
-  def __init__(self, config: dict[str, dict[str, Any]]):
+  def __init__(self, config: dict[str, Any]):
     """Initializes VersionsEventsRule class.
 
     Args:
-      config: The contents of config.yaml in dict format.
+      config: The contents of config.yaml in dict format, containing:
+        - apps: Configuration for apps to monitor
+        - bigquery: BigQuery connection settings
+        - auth: Authentication settings
     """
     apps_config = config['apps']
     bq_config = config['bigquery']
@@ -88,10 +96,10 @@ class VersionEventsRule(rules.Rule):
     """
 
     collector_tables = {
-        'app_store': tables.APP_STORE_TABLE_NAME,
-        'ga4': tables.GA4_TABLE_NAME,
-        'gads': tables.GADS_TABLE_NAME,
-        'play_store': tables.PLAY_STORE_TABLE_NAME,
+      'app_store': tables.APP_STORE_TABLE_NAME,
+      'ga4': tables.GA4_TABLE_NAME,
+      'gads': tables.GADS_TABLE_NAME,
+      'play_store': tables.PLAY_STORE_TABLE_NAME,
     }
 
     collectors_data = {}
@@ -101,8 +109,9 @@ class VersionEventsRule(rules.Rule):
 
     return collectors_data
 
-  def check_rule(self, collectors_data: dict[str, pd.DataFrame]
-                 ) -> List[VersionEventsEvent]:
+  def check_rule(
+    self, collectors_data: dict[str, pd.DataFrame]
+  ) -> List[VersionEventsEvent]:
     """Tests if the current version is missing events from previous version.
 
     Find any conversion action that exists in the previous app version, but does
@@ -111,9 +120,6 @@ class VersionEventsRule(rules.Rule):
     The logic of how this is done depends on which tables are available:
       - If GA4 or Google Ads data are missing - log an error (alert) and do not
       check the rule.
-      - If App / Play Store data is available -
-
-
       - If App Store data is available - if 'version' in App Store is larger
       than 'version' in GA4 and time between versions is larger than 24 hours,
       create new alert.
@@ -125,7 +131,7 @@ class VersionEventsRule(rules.Rule):
       are missing from this one.
 
       ** Note - Google Play Store API does not show the actual version, but a
-      numeric version code. That is why we are not comparing them directly
+      numeric version code. That is why we are not comparing them directly.
 
     Args:
       collectors_data: A dictionary of DataFrames that holds app and event data
@@ -136,7 +142,7 @@ class VersionEventsRule(rules.Rule):
       A list with all VersionEvents that were found.
     """
 
-    #Check if GA4 and GAds DataFrames exist in the collector
+    # Check if GA4 and GAds DataFrames exist in the collector
     if collectors_data.get('ga4') is None:
       logger.error('VersionEventsRule - Missing data from GA4 collector')
       return []
@@ -146,52 +152,59 @@ class VersionEventsRule(rules.Rule):
       return []
 
     stores = {
-        'app_store': collectors_data.get('app_store'),
-        'play_store': collectors_data.get('play_store')
+      'app_store': collectors_data.get('app_store'),
+      'play_store': collectors_data.get('play_store'),
     }
 
     # Check apps for rule violations
     rule_violations = []
     conversion_events = self.get_conversion_events(collectors_data)
     app_ids_list = conversion_events['app_id'].unique().tolist()
-    logger.info("VersionEventsRule - looking on app ids - %s", app_ids_list)
+    logger.info('VersionEventsRule - looking on app ids - %s', app_ids_list)
     for app_id in app_ids_list:
-      missing_events = self.get_app_missing_events(app_id, conversion_events,
-                                                   stores)
+      missing_events = self.get_app_missing_events(
+        app_id, conversion_events, stores
+      )
       if missing_events:
-        logger.info("VersionEventsRule - found missing events for %s - %s",
-                    app_id, missing_events)
+        logger.info(
+          'VersionEventsRule - found missing events for %s - %s',
+          app_id,
+          missing_events,
+        )
         rule_violations.extend(missing_events)
 
     return rule_violations
 
-  def create_alerts(self, data: List[VersionEventsEvent]) -> List[alerts.Alert]:
+  def create_alerts(
+    self, rule_violations: List[VersionEventsEvent]
+  ) -> List[alerts.Alert]:
     """Creates a list of Alert objects from missing events.
 
     Args:
-      data: List of Version Events.
+      rule_violations: List of Version Events.
 
     Returns:
       A list of Alert objects.
     """
 
     triggered_alerts = []
-    for event in data:
+    for event in rule_violations:
       triggered_alerts.append(
-          alerts.Alert(
-              app_id=event.app_id,
-              rule_name=self.name,
-              trigger='Missing event between versions',
-              trigger_value={
-                  'Event Name': event.event_name,
-                  'Missing from Version': event.cur_ver,
-                  'Previous Version': event.prev_ver,
-              },
-              alert_id=(
-                f'{self.name}_{event.app_id}_{event.event_name}_{event.cur_ver}'
-                f'_{event.prev_ver}'
-              )
-          ))
+        alerts.Alert(
+          app_id=event.app_id,
+          rule_name=self.name,
+          trigger='Missing event between versions',
+          trigger_value={
+            'Event Name': event.event_name,
+            'Missing from Version': event.cur_ver,
+            'Previous Version': event.prev_ver,
+          },
+          alert_id=(
+            f'{self.name}_{event.app_id}_{event.event_name}_{event.cur_ver}'
+            f'_{event.prev_ver}'
+          ),
+        )
+      )
 
     return triggered_alerts
 
@@ -222,8 +235,9 @@ class VersionEventsRule(rules.Rule):
     """
     return df.loc[df['uid'].isin(uids)]
 
-  def add_app_ids(self, gads_df: pd.DataFrame,
-                  ga4_df: pd.DataFrame) -> pd.DataFrame:
+  def add_app_ids(
+    self, gads_df: pd.DataFrame, ga4_df: pd.DataFrame
+  ) -> pd.DataFrame:
     """Adds app_ids and uids from gads to ga4 data by matching uids.
 
     Args:
@@ -270,7 +284,8 @@ class VersionEventsRule(rules.Rule):
     """
     spec = semantic_version.SimpleSpec('>0.0.0')
     valid_versions = [
-        semantic_version.Version(v) for v in versions if self.is_version(v)]
+      semantic_version.Version(v) for v in versions if self.is_version(v)
+    ]
     return str(spec.select(valid_versions))
 
   def find_previous_version(self, cur_ver: str, versions: List[str]) -> str:
@@ -285,12 +300,13 @@ class VersionEventsRule(rules.Rule):
     """
     spec = semantic_version.SimpleSpec(f'<{cur_ver}')
     valid_versions = [
-        semantic_version.Version(v) for v in versions if self.is_version(v)]
+      semantic_version.Version(v) for v in versions if self.is_version(v)
+    ]
     return str(spec.select(valid_versions))
 
-  def compare_events_between_versions(self, app_id:str, cur_ver: str,
-                                      prev_ver: str,df: pd.DataFrame
-                                      ) -> List[VersionEventsEvent]:
+  def compare_events_between_versions(
+    self, app_id: str, cur_ver: str, prev_ver: str, df: pd.DataFrame
+  ) -> List[VersionEventsEvent]:
     """Compares two lists of events from two different versions.
 
     Extracts data for both versions and compares if there are events in the
@@ -308,20 +324,21 @@ class VersionEventsRule(rules.Rule):
     prev_ver_events = self.get_events_for_version(prev_ver, df)
 
     missing_events = list(set(prev_ver_events).difference(set(cur_ver_events)))
-    logger.info("VersionEvents - cur_ver_events events - %s", cur_ver_events)
-    logger.info("VersionEvents - prev_ver_events events - %s", prev_ver_events)
-    logger.info("VersionEvents - missing events - %s", missing_events)
+    logger.info('VersionEvents - cur_ver_events events - %s', cur_ver_events)
+    logger.info('VersionEvents - prev_ver_events events - %s', prev_ver_events)
+    logger.info('VersionEvents - missing events - %s', missing_events)
 
     missing_events = [
-        VersionEventsEvent(event, app_id, cur_ver, prev_ver)
-        for event in missing_events
-        if missing_events
+      VersionEventsEvent(event, app_id, cur_ver, prev_ver)
+      for event in missing_events
+      if missing_events
     ]
 
     return missing_events
 
-  def get_events_for_version(self, version: str, df: pd.DataFrame
-                             ) -> pd.DataFrame:
+  def get_events_for_version(
+    self, version: str, df: pd.DataFrame
+  ) -> pd.DataFrame:
     """Gets all events in data for version.
 
     Args:
@@ -331,11 +348,11 @@ class VersionEventsRule(rules.Rule):
     Returns:
       DataFrame filtered for this version.
     """
-    #TODO - What happens when there are similar version number in different os's?
     return df.loc[df['app_version'] == version]['event_name'].unique().tolist()
 
-  def get_conversion_events(self, collectors_data: dict[str, pd.DataFrame]
-                            ) -> pd.DataFrame:
+  def get_conversion_events(
+    self, collectors_data: dict[str, pd.DataFrame]
+  ) -> pd.DataFrame:
     """Adds AppIds from GAds to GA4 data.
 
     Connects AppId with from GAds with GA4 event data making sure that we are
@@ -350,13 +367,14 @@ class VersionEventsRule(rules.Rule):
 
     """
     gads_uids = self.get_uids(self.app_ids, collectors_data['gads'])
-    ga4_conversion_events = self.filter_by_uids(gads_uids,
-                                                collectors_data['ga4'])
+    ga4_conversion_events = self.filter_by_uids(
+      gads_uids, collectors_data['ga4']
+    )
     return self.add_app_ids(collectors_data['gads'], ga4_conversion_events)
 
   def get_app_missing_events(
-      self, app_id: str, events: pd.DataFrame,
-      stores: dict[str,pd.DataFrame]) -> List[VersionEventsEvent]:
+    self, app_id: str, events: pd.DataFrame, stores: dict[str, pd.DataFrame]
+  ) -> List[VersionEventsEvent]:
     """Checks for missing events in an app by store or GA4 data.
 
     Checks if store data is available and sends relevant app sepcific data to
@@ -378,25 +396,40 @@ class VersionEventsRule(rules.Rule):
     prev_ver = self.find_previous_version(cur_ver, versions)
     os = app_events.iloc[0]['os'].lower()
     store_type = 'app_store' if os == 'ios' else 'play_store'
-    logger.info("VersionEventsEvent - looking for %s.%s.%s.%s",
-                app_id, cur_ver, prev_ver, os)
-
+    logger.info(
+      'VersionEventsEvent - looking for %s.%s.%s.%s',
+      app_id,
+      cur_ver,
+      prev_ver,
+      os,
+    )
 
     store = stores.get(store_type)
-    store = store if isinstance(store, pd.DataFrame) else (
-      pd.DataFrame(columns=['app_id']))
+    store = (
+      store
+      if isinstance(store, pd.DataFrame)
+      else (pd.DataFrame(columns=['app_id']))
+    )
     store = store[store['app_id'] == app_id].reset_index(drop=True)
 
     if not store.empty:
-      return self.check_missing_events_for_app(app_id, store, app_events,
-                                               cur_ver, prev_ver, store_type)
+      return self.check_missing_events_for_app(
+        app_id, store, app_events, cur_ver, prev_ver, store_type
+      )
 
-    return self.compare_events_between_versions(app_id, cur_ver, prev_ver,
-                                                events)
+    return self.compare_events_between_versions(
+      app_id, cur_ver, prev_ver, events
+    )
 
-  def check_missing_events_for_app(self, app_id: str, store: pd.DataFrame,
-                                   events, cur_ver, prev_ver, store_type
-                                   ) -> List[VersionEventsEvent]:
+  def check_missing_events_for_app(
+    self,
+    app_id: str,
+    store: pd.DataFrame,
+    events,
+    cur_ver,
+    prev_ver,
+    store_type,
+  ) -> List[VersionEventsEvent]:
     """Checks if there are any missing events between versions for an app.
 
     Args:
@@ -409,22 +442,28 @@ class VersionEventsRule(rules.Rule):
     """
 
     sorted_store = store.sort_values('timestamp', ascending=False)
-    if store_ver := self.has_new_version_been_released(store_type, sorted_store,
-                                                       events, cur_ver):
+    if store_ver := self.has_new_version_been_released(
+      store_type, sorted_store, events, cur_ver
+    ):
       ver_store = store[store['version'] == store_ver]
       ver_events = events[events['app_version'] == cur_ver]
       if self.is_gap_larger_than_24_hours(ver_store, ver_events):
-        logger.info("VersionEvents - missing first open")
-        # Potential issue with all store events, send first_open event Alert
+        logger.info('VersionEvents - missing first open')
+        # Potential issue with all store events -> send first_open event Alert.
         return [VersionEventsEvent('first_open', app_id, store_ver, cur_ver)]
       else:
-        return self.compare_events_between_versions(app_id, cur_ver, prev_ver,
-                                                    events)
+        return self.compare_events_between_versions(
+          app_id, cur_ver, prev_ver, events
+        )
     return []
 
-  def has_new_version_been_released(self, store_type: str, store: pd.DataFrame,
-                                    events: pd.DataFrame,
-                                    events_cur_ver: str) -> str | None:
+  def has_new_version_been_released(
+    self,
+    store_type: str,
+    store: pd.DataFrame,
+    events: pd.DataFrame,
+    events_cur_ver: str,
+  ) -> str | None:
     """Checks if a new app version has been released in the Store.
 
     Compares app versions depending on the store type:
@@ -434,7 +473,7 @@ class VersionEventsRule(rules.Rule):
       saw a version change in Play Store or in GA4 events. (**)
 
       ** Note: Google Play Store API does not show the actual version, but a
-      numeric version code. That is why we are not comparing them directly
+      numeric version code. That is why we are not comparing them directly.
 
     Args:
       store_type: Store type is app_store or play_store.
@@ -452,14 +491,19 @@ class VersionEventsRule(rules.Rule):
     if store_ver:
       if store_type == 'app_store':
         if semantic_version.Version(store_ver) > semantic_version.Version(
-            events_cur_ver):
+          events_cur_ver
+        ):
           return store_ver
 
       if store_type == 'play_store':
-        store_first = store[store['version'] == store_ver].tail(1).reset_index(
-          drop=True)
-        event_first = events[events['app_version'] == events_cur_ver].tail(
-            1).reset_index(drop=True)
+        store_first = (
+          store[store['version'] == store_ver].tail(1).reset_index(drop=True)
+        )
+        event_first = (
+          events[events['app_version'] == events_cur_ver]
+          .tail(1)
+          .reset_index(drop=True)
+        )
 
         store_timestamp = pd.to_datetime(store_first['timestamp'][0])
         event_timestamp = pd.to_datetime(event_first['date_added'][0])
@@ -469,8 +513,9 @@ class VersionEventsRule(rules.Rule):
 
     return None
 
-  def is_gap_larger_than_24_hours(self, store: pd.DataFrame,
-                                  events: pd.DataFrame) -> bool:
+  def is_gap_larger_than_24_hours(
+    self, store: pd.DataFrame, events: pd.DataFrame
+  ) -> bool:
     """Checks if difference between versions is over 24 hours.
 
     Determines whether the time gap between the most recent store version update
@@ -486,7 +531,11 @@ class VersionEventsRule(rules.Rule):
     events_first = events.tail(1).reset_index()
 
     buffer = datetime.timedelta(hours=24)
-    store_timestamp = pd.to_datetime(store_last['timestamp'][0]).tz_localize(None)
-    event_timestamp = pd.to_datetime(events_first['date_added'][0]).tz_localize(None)
+    store_timestamp = pd.to_datetime(store_last['timestamp'][0]).tz_localize(
+      None
+    )
+    event_timestamp = pd.to_datetime(events_first['date_added'][0]).tz_localize(
+      None
+    )
 
     return store_timestamp > event_timestamp + buffer
