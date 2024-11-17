@@ -49,7 +49,6 @@ class TestMainFunctions:
   def test_collect(
     self, mock_expand_mcc, mock_fetcher, collector, gads_df, gads_campaigns
   ):
-    # def test_collect(self, collector: GAdsCollector):
     mock_expand_mcc.return_value = self._create_mock_expand_mcc()
     mock_fetcher.side_effect = [
       self._create_mock_fetch_campaigns(gads_campaigns),
@@ -148,22 +147,21 @@ class TestHelperFunctions:
     ]
     substr = 'conversion_action.resource_name IN'
 
-    valid_query = """
-          SELECT
-            conversion_action.app_id as app_id,
-            conversion_action.firebase_settings.property_id as property_id,
-            conversion_action.firebase_settings.property_name as property_name,
-            conversion_action.firebase_settings.event_name as event_name,
-            conversion_action.type as type,
-            metrics.conversion_last_conversion_date as last_conversion_date
-          FROM
-            conversion_action
-          WHERE
-            conversion_action.status = 'ENABLED'
-            AND conversion_action.app_id IS NOT NULL
-            AND conversion_action.firebase_settings.property_id != 0
-            AND conversion_action.resource_name IN
-    """
+    valid_query = (
+      'SELECT '
+      'conversion_action.app_id AS app_id, '
+      'conversion_action.firebase_settings.property_id AS property_id, '
+      'conversion_action.firebase_settings.property_name AS property_name, '
+      'conversion_action.firebase_settings.event_name AS event_name, '
+      'conversion_action.type AS type, '
+      'metrics.conversion_last_conversion_date AS last_conversion_date '
+      'FROM conversion_action '
+      "WHERE conversion_action.status = 'ENABLED' "
+      'AND conversion_action.app_id IS NOT NULL '
+      'AND conversion_action.firebase_settings.property_id != 0 '
+      'AND conversion_action.resource_name IN '
+    )
+
     valid_query = re.sub(r'\s+', ' ', valid_query).strip()
 
     queries_dict = collector.create_conversion_actions_queries(
