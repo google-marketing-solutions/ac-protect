@@ -31,13 +31,13 @@ class RuleObject(abc.ABC):
   All rule-specific violation objects should inherit from this class and
   implement required attributes for their specific use case.
 
-  Required Attributes:
-      app_id: The ID of the app where the violation occurred.
+  Attributes:
       event_name: The name of the event that triggered the violation.
+      app_id: The ID of the app where the violation occurred.
   """
 
-  app_id: str
   event_name: str
+  app_id: str
 
 
 class Rule(abc.ABC):
@@ -129,8 +129,9 @@ class Rule(abc.ABC):
     if not triggered_alerts:
       return False
 
-    if not all(
-      isinstance(triggered_alerts, alerts.Alert) for _ in triggered_alerts
+    if any(
+      not isinstance(triggered_alert, alerts.Alert)
+      for triggered_alert in triggered_alerts
     ):
       raise TypeError('Alerts must be of type Alert')
     return self.db_client.write_alerts(triggered_alerts)
