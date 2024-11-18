@@ -106,7 +106,7 @@ class TestVersionEventsRule:
   def test_run(self):
     pass
 
-  @mock.patch('server.classes.rules.BigQuery.get_values_from_table')
+  @mock.patch('server.classes.rules.bq.BigQuery.get_values_from_table')
   def test_get_data(
     self, mock_get_values, fake_collector_data, version_events_obj
   ):

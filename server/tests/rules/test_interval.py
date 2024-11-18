@@ -63,6 +63,11 @@ def fixture_fake_interval_alert(fake_interval_event_1):
   )
 
 
+@pytest.fixture(name='collectors_data')
+def fixture_collectors_data(gads_df, collector_ga4):
+  return {'gads': gads_df, 'ga4': collector_ga4}
+
+
 class TestIntervalRule:
   """Test class for IntervalEventsRule.
 
@@ -82,10 +87,10 @@ class TestIntervalRule:
     assert interval_event.ga4_table == tables.GA4_TABLE_NAME
     assert interval_event.interval == interval_time
 
-  def test_check_rule(self, interval_event, gads_df, collector_ga4):
+  def test_check_rule(self, interval_event, collectors_data):
     num_violations = 15
 
-    violations = interval_event.check_rule(gads_df, collector_ga4)
+    violations = interval_event.check_rule(collectors_data)
     assert isinstance(violations, list)
     assert len(violations) == num_violations
     assert all(isinstance(v, interval.IntervalEvent) for v in violations)
