@@ -43,7 +43,7 @@ provider "google" {
 
 
 data "external" "latest_image_digest" {
-  program = ["./fetch_latest_image_digest.sh"]
+  program = ["./scripts/fetch_latest_image_digest.sh"]
 }
 
 # Attempt to retrieve an existing bucket
