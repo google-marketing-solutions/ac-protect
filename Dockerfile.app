@@ -10,6 +10,9 @@ ENV PROJECT_ID=${PROJECT_ID}
 # Set the working directory in the container
 WORKDIR /ac-protect
 
+# Add the root directory to the system path so that the server can be seen
+ENV PYTHONPATH="${WORKDIR}:${PYTHONPATH}"
+
 # Copy the current directory contents into the container at /app
 COPY . /ac-protect
 
@@ -20,4 +23,4 @@ RUN pip install --require-hashes --no-cache-dir --no-deps -r requirements.txt
 EXPOSE 8080
 
 # Run app.py when the container launches
-CMD ["streamlit", "run", "app.py", "--server.port", "8080"]
+CMD ["streamlit", "run", "frontend/app.py", "--server.port", "8080"]

@@ -12,23 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 """Environment variables used by the project."""
-# pylint: disable=C0330, g-multiple-import
+# pylint: disable=C0330
 
+import os
 import pathlib
-from os import getenv
 
-from dotenv import find_dotenv, load_dotenv
+import dotenv
 
-PROJECT_ID = getenv('PROJECT_ID', '')
+_PROJECT_ID = os.getenv('PROJECT_ID', '')
+_IS_LOCAL = os.getenv('IS_LOCAL', 'True').lower() == 'true'
+if _IS_LOCAL:
+  dotenv.load_dotenv(dotenv_path=dotenv.find_dotenv(), override=True)
+_LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.resolve()}/config.yaml'
+_REMOTE_CONFIG_PATH = f'gs://{_PROJECT_ID}/ac-protect/config.yaml'
+_CONFIG_FILE_PATH = _REMOTE_CONFIG_PATH if _PROJECT_ID else _LOCAL_CONFIG_PATH
 
-IS_LOCAL = getenv('IS_LOCAL', 'True').lower() == 'true'
-if IS_LOCAL:
-  load_dotenv(dotenv_path=find_dotenv(), override=True)
-
-LOCAL_CONFIG_PATH = f'{pathlib.Path(__file__).parent.resolve()}/config.yaml'
-REMOTE_CONFIG_PATH = f'gs://{PROJECT_ID}/ac-protect/config.yaml'
-CONFIG_FILE_PATH = REMOTE_CONFIG_PATH if PROJECT_ID else LOCAL_CONFIG_PATH
-CONFIG_PATH = getenv('CONFIG_PATH', CONFIG_FILE_PATH)
-REDIRECT_URI = getenv(
+CONFIG_PATH = os.getenv('CONFIG_PATH', _CONFIG_FILE_PATH)
+REDIRECT_URI = os.getenv(
   'REDIRECT_URI', 'https://sdk.cloud.google.com/authcode.html'
 )
