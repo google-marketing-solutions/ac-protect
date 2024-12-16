@@ -44,7 +44,7 @@ class AppStoreCollector(Collector):
 
     super().__init__('app-store-collector', 'collector')
 
-    self.apps = apps
+    self.apps = [app_id for app_id in apps if app_id.isnumeric()]
     self.bq = bq
     self.columns = [field.name for field in fields(tables.AppStoreTable)]
 
@@ -58,8 +58,7 @@ class AppStoreCollector(Collector):
 
     logger.info('AppStore Collector - Running "collect"')
     data = {}
-    app_store_app_ids = [app_id for app_id in self.apps if app_id.isnumeric()]
-    for app_id in app_store_app_ids:
+    for app_id in self.apps:
       app_data = self.lookup_app_in_appstore(app_id)
       data.update(app_data)
     return pd.json_normalize(data, sep='_')

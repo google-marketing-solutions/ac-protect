@@ -506,7 +506,9 @@ class VersionEventsRule(rules.Rule):
         )
 
         store_timestamp = pd.to_datetime(store_first['timestamp'][0])
+        store_timestamp.tz_convert(None)
         event_timestamp = pd.to_datetime(event_first['date_added'][0])
+        event_timestamp.tz_convert(None)
 
         if store_timestamp > event_timestamp:
           return store_ver

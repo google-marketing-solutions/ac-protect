@@ -50,7 +50,7 @@ class PlayStoreCollector(Collector):
 
     super().__init__('play-store-collector', 'collector')
 
-    self.apps = apps
+    self.apps = [app_id for app_id in apps if not app_id.isnumeric()]
     self.bq = bq
     self.columns = [field.name for field in fields(tables.PlayStoreTable)]
     self.creds = self.create_play_credentials(auth)
