@@ -106,7 +106,7 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
     return False
 
   collector_names = list(config['collectors'].keys())
-  overwrite = False
+  overwrite_list = [tables.GADS_TABLE_NAME]
 
   for collector_name in collector_names:
     logger.info('Running collector - %s', collector_name)
@@ -117,7 +117,6 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
       collector = ga4.GA4Collector(auth, collector_config, bq)
     elif collector_name == tables.GADS_TABLE_NAME:
       collector = gads.GAdsCollector(auth, collector_config, bq)
-      overwrite = True
     elif collector_name == tables.APP_STORE_TABLE_NAME:
       collector = app_store.AppStoreCollector(config['apps'], bq)
     elif collector_name == tables.PLAY_STORE_TABLE_NAME:
@@ -125,6 +124,8 @@ def orchestrator(config_yaml_path: Optional[str] = CONFIG_PATH) -> bool:
 
     if collector:
       df = collector.collect()
+      overwrite = collector_name in overwrite_list
+
       if not df.empty:
         df = collector.process(df)
         collector.save(df, overwrite)
