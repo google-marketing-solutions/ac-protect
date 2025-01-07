@@ -211,6 +211,9 @@ resource "google_bigquery_table" "collector_play_store" {
   dataset_id = google_bigquery_dataset.dataset.dataset_id
   table_id   = "collector_play_store"
 
+  # Added temporarily to allow changing the table schema in v1.2.1
+  deletion_protection = false
+
   time_partitioning {
     type = "DAY"
   }
